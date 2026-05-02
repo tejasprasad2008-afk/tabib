@@ -1,1 +1,40 @@
-Nothing needs to be added to .gitignore since the changes only include source files (.py) and a markdown file (.md), which should not be ignored.
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compiled
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out

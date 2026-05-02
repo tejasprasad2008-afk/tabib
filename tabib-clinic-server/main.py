@@ -43,6 +43,9 @@ from registry import register_clinic, get_nearby_clinics, get_local_clinic
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address)
 
+# Force HTTPS by default in production
+FORCE_HTTPS_DEFAULT = "true"
+
 
 class OTPRequest(BaseModel):
     phone: str
@@ -153,9 +156,15 @@ from fastapi.responses import RedirectResponse, JSONResponse
 
 @app.middleware("http")
 async def https_redirect(request: Request, call_next):
-    if request.url.scheme == "http" and os.getenv("FORCE_HTTPS") == "true":
+    # Force HTTPS by default unless explicitly disabled for local dev
+    force_https = os.getenv("FORCE_HTTPS", FORCE_HTTPS_DEFAULT).lower() == "true"
+    if request.url.scheme == "http" and force_https:
         return RedirectResponse(url=request.url.replace(scheme="https"), status_code=301)
-    return await call_next(request)
+    response = await call_next(request)
+    # Add HSTS header when using HTTPS
+    if force_https and request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # CORS
 app.add_middleware(
@@ -217,11 +226,10 @@ async def verify_otp_endpoint(request: Request, data: OTPVerifyRequest):
 
 @app.post("/api/chat")
 @limiter.limit("15/minute")
-async def chat_endpoint(request: ChatRequest, authorization: str = Header(None), patient: dict = Depends(lambda auth=None: None)):
-    """Submit chat request to queue - TEMPORARY: Auth disabled for demo"""
-    # TODO: Re-enable auth with: patient: dict = Depends(get_current_patient)
-    # For now, using demo patient to allow testing without token
-    patient_id = "demo_patient_" + str(uuid.uuid4())[:8]
+async def chat_endpoint(request: ChatRequest, patient: dict = Depends(get_current_patient)):
+    """Submit chat request to queue - validates ownership"""
+    # Use the authenticated patient_id from token
+    patient_id = patient["id"]
     
     if not request.message and not request.image_base64:
         raise HTTPException(status_code=400, detail="Message or image required")
@@ -285,11 +293,8 @@ async def chat_endpoint(request: ChatRequest, authorization: str = Header(None),
 
 
 @app.get("/api/queue-status")
-async def queue_status(request_id: str, authorization: str = Header(None)):
+async def queue_status(request_id: str, patient: dict = Depends(get_current_patient)):
     """Get status of a queue request - validates ownership"""
-    # TEMPORARY: Skip auth for demo mode
-    # TODO: Re-enable with: patient: dict = Depends(get_current_patient)
-    
     # Get the queue item first to check existence
     from database import get_queue_item
     queue_item = await get_queue_item(request_id)
@@ -297,10 +302,10 @@ async def queue_status(request_id: str, authorization: str = Header(None)):
     if not queue_item:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    # In production, verify ownership:
-    # if queue_item["patient_id"] != patient["id"]:
-    #     print(f"IDOR attempt detected")
-    #     raise HTTPException(status_code=404, detail="Request not found")
+    # Verify ownership - prevent IDOR attack
+    if queue_item["patient_id"] != patient["id"]:
+        print(f"IDOR attempt detected: patient {patient['id']} tried to access {request_id}")
+        raise HTTPException(status_code=404, detail="Request not found")
     
     item = await queue_manager.get_status(request_id)
     return item
@@ -308,19 +313,16 @@ async def queue_status(request_id: str, authorization: str = Header(None)):
 
 @app.post("/api/notify-clinic")
 @limiter.limit("5/minute")
-async def notify_clinic(request: NotifyClinicRequest, authorization: str = Header(None)):
+async def notify_clinic(request: NotifyClinicRequest, patient: dict = Depends(get_current_patient)):
     """Notify clinic about patient session"""
-    # TEMPORARY: Skip auth for demo mode
-    # TODO: Re-enable with: patient: dict = Depends(get_current_patient)
-    
     if not request.consent_given:
         raise HTTPException(
             status_code=400,
             detail="Patient consent is required to notify clinic"
         )
 
-    # Use a demo patient_id for now
-    patient_id = "demo_patient_notify"
+    # Use the authenticated patient_id
+    patient_id = patient["id"]
 
     # Create notification in database
     notification_id = await create_notification(

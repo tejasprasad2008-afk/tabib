@@ -80,15 +80,18 @@ export default function ChatScreen() {
     setIsTyping(true);
 
     try {
-      const patientId = localStorage.getItem("tabib_patient_id") || "demo_patient";
-      
-      const response = await apiRequest<{ response: string, structured?: any }>("/api/chat", {
+      const response = await apiRequest<{ response: string, structured?: any, request_id?: string }>("/api/chat", {
         method: "POST",
         body: JSON.stringify({
-          patient_id: patientId,
-          message: userText
+          message: userText,
+          image_base64: imageFile || undefined
         })
       });
+      
+      // Store request_id for queue status polling
+      if (response.request_id) {
+        localStorage.setItem("tabib_last_request_id", response.request_id);
+      }
       
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
@@ -122,17 +125,13 @@ export default function ChatScreen() {
     setIsTyping(true);
     
     try {
-      const patientId = localStorage.getItem("tabib_patient_id");
-      const patientName = localStorage.getItem("tabib_patient_name");
       const patientPhone = localStorage.getItem("tabib_patient_phone");
 
       await apiRequest("/api/notify-clinic", {
         method: "POST",
         body: JSON.stringify({
-          patient_id: patientId,
-          name: patientName,
-          phone: patientPhone,
-          summary: "الطلب: استشارة طبيب بخصوص " + messages[messages.length-1].text
+          patient_phone: patientPhone,
+          consent_given: true
         })
       });
 
