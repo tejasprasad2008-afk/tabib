@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tabib — Clinic Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue: #2563EB; --blue-dark: #1D4ED8; --teal: #10B981;
+      --red: #DC2626; --amber: #F59E0B; --green: #10B981;
+      --bg: #F9FAFB; --card: #ffffff; --border: #E5E7EB;
+      --text: #111827; --muted: #6B7280; --lighter: #9CA3AF;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); font-size: 16px; -webkit-font-smoothing: antialiased; }
+    button { cursor: pointer; font-family: inherit; }
+
+    /* ── Login ── */
+    #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+    .login-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 2.5rem 2rem; text-align: center; width: 100%; max-width: 380px; box-shadow: 0 4px 24px rgba(0,0,0,.06); }
+    .login-logo { width: 64px; height: 64px; background: var(--blue); border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1.25rem; }
+    .login-logo svg { width: 32px; height: 32px; }
+    .login-card h1 { font-size: 1.5rem; font-weight: 700; color: var(--text); }
+    .login-card p { color: var(--muted); font-size: 0.95rem; margin: .4rem 0 1.75rem; }
+    .pin-input { width: 100%; padding: .875rem 1rem; font-size: 1.75rem; text-align: center; letter-spacing: .75rem; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 1rem; color: var(--text); outline: none; transition: border-color .15s; }
+    .pin-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+    .btn-primary { width: 100%; padding: 1rem; background: var(--blue); color: #fff; border: none; border-radius: 12px; font-size: 1rem; font-weight: 600; transition: background .15s; min-height: 52px; }
+    .btn-primary:hover { background: var(--blue-dark); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+    .login-error { color: var(--red); font-size: .875rem; margin-top: .75rem; min-height: 1.25rem; }
+
+    /* ── Dashboard ── */
+    #dashboard { display: none; min-height: 100vh; }
+    #dashboard.active { display: block; }
+
+    /* Header */
+    .dash-header { background: var(--card); border-bottom: 1px solid var(--border); padding: .875rem 1.5rem; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+    .dash-header-left { display: flex; align-items: center; gap: .75rem; }
+    .dash-logo { width: 36px; height: 36px; background: var(--blue); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .dash-logo svg { width: 20px; height: 20px; }
+    .dash-title { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+    .dash-clinic-name { font-size: .8rem; color: var(--muted); }
+    .conn-badge { display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 500; background: #ECFDF5; color: #065F46; padding: .3rem .75rem; border-radius: 999px; border: 1px solid #A7F3D0; }
+    .conn-badge.offline { background: #FEF2F2; color: #991B1B; border-color: #FCA5A5; }
+    .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; padding: 1.25rem 1.5rem; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.25rem; text-align: center; }
+    .stat-icon { width: 36px; height: 36px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: .5rem; }
+    .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .stat-label { font-size: .8rem; color: var(--muted); margin-top: .25rem; }
+    .stat-blue .stat-icon { background: #EFF6FF; } .stat-blue .stat-value { color: var(--blue); }
+    .stat-amber .stat-icon { background: #FFFBEB; } .stat-amber .stat-value { color: var(--amber); }
+    .stat-red .stat-icon { background: #FEF2F2; } .stat-red .stat-value { color: var(--red); }
+
+    /* Filters */
+    .filters { display: flex; gap: .5rem; padding: 0 1.5rem 1rem; flex-wrap: wrap; }
+    .filter-btn { padding: .5rem 1rem; background: var(--card); border: 1px solid var(--border); border-radius: 999px; font-size: .875rem; font-weight: 500; color: var(--muted); transition: all .15s; min-height: 36px; }
+    .filter-btn:hover { border-color: var(--blue); color: var(--blue); }
+    .filter-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .filter-btn.active-red { background: var(--red); color: #fff; border-color: var(--red); }
+
+    /* Notification cards */
+    .notif-list { padding: 0 1.5rem 2rem; display: flex; flex-direction: column; gap: .875rem; }
+    .notif-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem; animation: slideIn .25s ease-out; border-left: 4px solid var(--border); }
+    .notif-card.emergency { border-left-color: var(--red); }
+    .notif-card.see-doctor { border-left-color: var(--amber); }
+    .notif-card.home-care { border-left-color: var(--green); }
+    @keyframes slideIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+
+    .notif-top { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .875rem; flex-wrap: wrap; }
+    .notif-left { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+
+    .urgency-badge { display: inline-flex; align-items: center; gap: .375rem; padding: .3rem .8rem; border-radius: 999px; font-size: .8rem; font-weight: 600; border: 1px solid transparent; }
+    .urgency-badge.emergency { background: #FEF2F2; color: #991B1B; border-color: #FCA5A5; }
+    .urgency-badge.see-doctor { background: #FFFBEB; color: #92400E; border-color: #FDE68A; }
+    .urgency-badge.home-care { background: #ECFDF5; color: #065F46; border-color: #A7F3D0; }
+
+    .patient-phone { font-weight: 600; font-size: .95rem; color: var(--text); }
+    .notif-time { font-size: .8rem; color: var(--lighter); white-space: nowrap; }
+
+    .summary-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: .875rem 1rem; margin-bottom: 1rem; font-size: .9rem; line-height: 1.6; color: var(--text); }
+    .summary-label { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: .4rem; }
+
+    .notif-actions { display: flex; gap: .625rem; flex-wrap: wrap; }
+    .btn-callback { padding: .6rem 1.1rem; background: var(--blue); color: #fff; border: none; border-radius: 10px; font-size: .875rem; font-weight: 600; transition: background .15s; min-height: 44px; }
+    .btn-callback:hover { background: var(--blue-dark); }
+    .btn-callback:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+    .btn-callback.done { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 4rem 2rem; }
+    .empty-icon { width: 64px; height: 64px; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem; }
+    .empty-state h3 { font-size: 1.1rem; font-weight: 600; color: var(--text); margin-bottom: .375rem; }
+    .empty-state p { color: var(--muted); font-size: .9rem; }
+
+    /* New notification flash */
+    .new-flash { animation: flash .6s ease-out; }
+    @keyframes flash { 0%,100%{background:var(--card)} 50%{background:#EFF6FF} }
+
+    @media(max-width:480px) {
+      .stats-grid { grid-template-columns: repeat(3,1fr); gap:.5rem; padding:.875rem 1rem; }
+      .stat-card { padding:.75rem .5rem; }
+      .stat-value { font-size:1.5rem; }
+      .notif-list, .filters, .dash-header { padding-left:1rem; padding-right:1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Login ── -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white">
+        <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z"/>
+      </svg>
+    </div>
+    <h1>Tabib · طبيب</h1>
+    <p>Enter your clinic PIN to access the dashboard</p>
+    <input type="password" id="pinInput" class="pin-input" placeholder="••••••" maxlength="6" inputmode="numeric">
+    <button class="btn-primary" onclick="login()" id="loginBtn">Access Dashboard</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ── Dashboard ── -->
+<div id="dashboard">
+  <header class="dash-header">
+    <div class="dash-header-left">
+      <div class="dash-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white">
+          <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="dash-title">Tabib Dashboard</div>
+        <div class="dash-clinic-name" id="clinicName">Clinic</div>
+      </div>
+    </div>
+    <div class="conn-badge" id="connBadge">
+      <span class="conn-dot"></span>
+      <span id="connStatus">Connected</span>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card stat-blue">
+      <div class="stat-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#2563EB" width="18" height="18">
+          <path d="M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM1.49 15.326a.78.78 0 0 1-.358-.442 3 3 0 0 1 4.308-3.516 6.484 6.484 0 0 0-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 0 1-2.07-.655ZM16.44 15.98a4.97 4.97 0 0 0 2.07-.654.78.78 0 0 0 .357-.442 3 3 0 0 0-4.308-3.517 6.484 6.484 0 0 1 1.907 3.96 2.32 2.32 0 0 1-.026.654ZM18 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM5.304 16.19a.844.844 0 0 1-.277-.71 5 5 0 0 1 9.947 0 .843.843 0 0 1-.277.71A6.975 6.975 0 0 1 10 18a6.974 6.974 0 0 1-4.696-1.81Z"/>
+        </svg>
+      </div>
+      <div class="stat-value" id="totalToday">0</div>
+      <div class="stat-label">Total Today</div>
+    </div>
+    <div class="stat-card stat-amber">
+      <div class="stat-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#F59E0B" width="18" height="18">
+          <path fillRule="evenodd" d="M1.5 4.5a3 3 0 0 1 3-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 0 1-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 0 0 6.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 0 1 1.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 0 1-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5Z" clipRule="evenodd"/>
+        </svg>
+      </div>
+      <div class="stat-value" id="pendingCallbacks">0</div>
+      <div class="stat-label">Pending Callbacks</div>
+    </div>
+    <div class="stat-card stat-red">
+      <div class="stat-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#DC2626" width="18" height="18">
+          <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd"/>
+        </svg>
+      </div>
+      <div class="stat-value" id="emergenciesToday">0</div>
+      <div class="stat-label">Emergencies</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setFilter('pending',this)">Pending</button>
+    <button class="filter-btn" onclick="setFilter('called',this)">Called Back</button>
+    <button class="filter-btn" onclick="setFilter('emergency',this)">🔴 Emergency</button>
+  </div>
+
+  <!-- Notification list -->
+  <div class="notif-list" id="notifList">
+    <div class="empty-state">
+      <div class="empty-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#9CA3AF" width="28" height="28">
+          <path fillRule="evenodd" d="M5.25 9a6.75 6.75 0 0 1 13.5 0v.75c0 2.123.8 4.057 2.118 5.52a.75.75 0 0 1-.297 1.206c-1.544.57-3.16.99-4.831 1.243a3.75 3.75 0 1 1-7.48 0 24.585 24.585 0 0 1-4.831-1.244.75.75 0 0 1-.298-1.205A8.217 8.217 0 0 0 5.25 9.75V9Z" clipRule="evenodd"/>
+        </svg>
+      </div>
+      <h3>No notifications yet</h3>
+      <p>Patients appear here when they tap "Notify Clinic"</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  let PIN = '123456';
+  let ws = null, currentFilter = 'all', notifications = [];
+  let audioCtx = null;
+
+  // Fetch PIN from backend
+  async function loadConfig() {
+    try {
+      const r = await fetch('/api/dashboard/config');
+      const d = await r.json();
+      PIN = d.pin;
+    } catch (e) {
+      console.error('Failed to load config:', e);
+    }
+  }
+
+  function playPing() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = 880; osc.type = 'sine';
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+  }
+
+  async function login() {
+    await loadConfig();
+    const pin = document.getElementById('pinInput').value;
+    const err = document.getElementById('loginError');
+    if (pin === PIN) {
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('dashboard').classList.add('active');
+      connectWS(); loadNotifications();
+    } else {
+      err.textContent = 'Incorrect PIN. Please try again.';
+      document.getElementById('pinInput').value = '';
+      document.getElementById('pinInput').focus();
+    }
+  }
+
+  function setConnStatus(online) {
+    const badge = document.getElementById('connBadge');
+    const status = document.getElementById('connStatus');
+    badge.className = 'conn-badge' + (online ? '' : ' offline');
+    status.textContent = online ? 'Connected' : 'Disconnected';
+  }
+
+  function connectWS() {
+    ws = new WebSocket(`ws://${location.host}/ws/dashboard`);
+    ws.onopen = () => setConnStatus(true);
+    ws.onclose = () => { setConnStatus(false); setTimeout(connectWS, 5000); };
+    ws.onerror = () => setConnStatus(false);
+    ws.onmessage = (e) => {
+      const d = JSON.parse(e.data);
+      if (d.type === 'new_notification') { playPing(); loadNotifications(); }
+    };
+  }
+
+  async function loadNotifications() {
+    try {
+      const r = await fetch('/api/notifications');
+      const d = await r.json();
+      notifications = d.notifications || [];
+      render(); updateStats();
+    } catch (e) { console.error(e); }
+  }
+
+  function setFilter(f, btn) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active','active-red'));
+    btn.classList.add(f === 'emergency' ? 'active-red' : 'active');
+    render();
+  }
+
+  function urgencyClass(lvl) {
+    return lvl === 'EMERGENCY' ? 'emergency' : lvl === 'SEE_A_DOCTOR' ? 'see-doctor' : 'home-care';
+  }
+  function urgencyLabel(lvl) {
+    return lvl === 'EMERGENCY' ? '🔴 EMERGENCY' : lvl === 'SEE_A_DOCTOR' ? '🟡 SEE A DOCTOR' : '🟢 HOME CARE';
+  }
+
+  function render() {
+    const container = document.getElementById('notifList');
+    let list = notifications;
+    if (currentFilter === 'pending')   list = notifications.filter(n => !n.called_back);
+    if (currentFilter === 'called')    list = notifications.filter(n =>  n.called_back);
+    if (currentFilter === 'emergency') list = notifications.filter(n => n.urgency_level === 'EMERGENCY');
+
+    if (!list.length) {
+      container.innerHTML = `<div class="empty-state">
+        <div class="empty-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#9CA3AF" width="28" height="28"><path fillRule="evenodd" d="M5.25 9a6.75 6.75 0 0 1 13.5 0v.75c0 2.123.8 4.057 2.118 5.52a.75.75 0 0 1-.297 1.206c-1.544.57-3.16.99-4.831 1.243a3.75 3.75 0 1 1-7.48 0 24.585 24.585 0 0 1-4.831-1.244.75.75 0 0 1-.298-1.205A8.217 8.217 0 0 0 5.25 9.75V9Z" clipRule="evenodd"/></svg></div>
+        <h3>No notifications</h3>
+        <p>${currentFilter === 'all' ? 'Patients appear here when they tap "Notify Clinic"' : 'No ' + currentFilter + ' notifications'}</p>
+      </div>`;
+      return;
+    }
+
+    container.innerHTML = list.map(n => {
+      const uc = urgencyClass(n.urgency_level);
+      const ts = new Date(n.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      const dateStr = new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return `<div class="notif-card ${uc}" id="card-${n.id}">
+        <div class="notif-top">
+          <div class="notif-left">
+            <span class="urgency-badge ${uc}">${urgencyLabel(n.urgency_level)}</span>
+            <span class="patient-phone">${n.patient_phone}</span>
+          </div>
+          <span class="notif-time">${dateStr}, ${ts}</span>
+        </div>
+        <div class="summary-box">
+          <div class="summary-label">Clinical Summary</div>
+          ${n.summary || '<span style="color:#9CA3AF">Summary will be generated…</span>'}
+        </div>
+        <div class="notif-actions">
+          <button class="btn-callback ${n.called_back ? 'done' : ''}" ${n.called_back ? 'disabled' : ''} onclick="markCallback('${n.id}')">
+            ${n.called_back ? '✓ Called Back' : '📞 Mark as Called Back'}
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function updateStats() {
+    const today = new Date().toDateString();
+    const todayList = notifications.filter(n => new Date(n.created_at).toDateString() === today);
+    document.getElementById('totalToday').textContent = todayList.length;
+    document.getElementById('pendingCallbacks').textContent = notifications.filter(n => !n.called_back).length;
+    document.getElementById('emergenciesToday').textContent = todayList.filter(n => n.urgency_level === 'EMERGENCY').length;
+  }
+
+  async function markCallback(id) {
+    try {
+      const r = await fetch(`/api/notifications/${id}/callback`, { method: 'POST' });
+      if (r.ok) loadNotifications();
+    } catch (e) { console.error(e); }
+  }
+
+  document.getElementById('pinInput').addEventListener('keypress', e => { if (e.key === 'Enter') login(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "demo_clinic": {
+    "id": "demo_clinic",
+    "name": "مركز طبيب النموذجي",
+    "city": "الرياض",
+    "lat": 24.7136,
+    "lng": 46.6753,
+    "phone": "+966 50 000 0000",
+    "public_url": "http://localhost:8000",
+    "registered_at": "2026-05-02 13:25:00"
+  }
+}

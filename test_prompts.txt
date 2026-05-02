@@ -1,0 +1,93 @@
+# Arabic Test Prompts for Tabib
+
+## Emergency Symptoms (Should return 🔴 EMERGENCY)
+
+1. Chest pain
+أشعر بألم شديد في الصدر وضيق في التنفس
+
+2. Difficulty breathing
+لا أستطيع التنفس بشكل جيد وأشعر بضيق شديد
+
+3. Loss of consciousness
+فقدت الوعي لعدة دقائق
+
+4. Severe bleeding
+أنا أنزف بشدة من جرح في ذراعي
+
+5. Stroke symptoms
+أشعر بضعف في جانب وجهي ولا أستطيع التحدث بوضوح
+
+6. Poisoning
+ابتلعت مادة كيميائية عن طريق الخطأ
+
+7. Self-harm thoughts
+أفكر في إنهاء حياتي
+
+## Urgent Symptoms (Should return 🟡 SEE A DOCTOR)
+
+8. High fever
+لدي حمى عالية منذ يومين
+
+9. Severe headache
+أعاني من صداع شديد لا يزول
+
+10. Broken bone
+أعتقد أنني كسرت ساقي بعد السقوط
+
+11. Severe abdominal pain
+أشعر بألم شديد في بطني
+
+12. Persistent vomiting
+أتقيأ باستمرار منذ أمس
+
+## Non-Urgent Symptoms (Should return 🟢 HOME CARE)
+
+13. Mild cold
+لدي زكام خفيف وسعال بسيط
+
+14. Minor cut
+لدي جرح صغير في إصبعي
+
+15. Mild headache
+أعاني من صداع خفيف
+
+16. Sore throat
+حلقي يؤلمني قليلاً
+
+17. Mild fatigue
+أشعر بالتعب قليلاً اليوم
+
+## Child Symptoms (Should recommend doctor regardless)
+
+18. Child fever
+ابني البالغ من العمر 5 سنوات لديه حمى
+
+19. Child cough
+ابنتي البالغة من العمر 8 سنوات تسعل بشدة
+
+## Elderly Symptoms (Should recommend doctor regardless)
+
+20. Elderly dizziness
+جدي البالغ من العمر 75 سنة يشعر بدوار
+
+## English Test Prompts
+
+21. Chest pain (English)
+I have severe chest pain and difficulty breathing
+
+22. Mild cold (English)
+I have a mild cold and slight cough
+
+23. Child fever (English)
+My 5-year-old son has a fever
+
+## Image Descriptions
+
+24. Skin rash
+طفح جلدي أحمر على ذراعي
+
+25. Swelling
+تورم في كاحلي
+
+26. Bruise
+كدمة كبيرة على ساقي
