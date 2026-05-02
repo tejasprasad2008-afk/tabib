@@ -123,3 +123,46 @@ def get_auth_error_message() -> Dict[str, Any]:
         "message_ar": "غير مصرح. يرجى تسجيل الدخول.",
         "message_en": "Unauthorized. Please log in."
     }
+
+
+async def get_current_patient(authorization: str = None) -> Dict[str, Any]:
+    """
+    Dependency to get current authenticated patient from Authorization header.
+    Use with FastAPI Depends().
+    
+    Usage:
+        @app.get("/api/protected")
+        async def protected_endpoint(patient: dict = Depends(get_current_patient)):
+            patient_id = patient["id"]
+            ...
+    """
+    from fastapi import HTTPException, Header
+    
+    # Validate token
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "Unauthorized",
+                "message_ar": "غير مصرح. يرجى تسجيل الدخول.",
+                "message_en": "Unauthorized. Please log in."
+            }
+        )
+    
+    # Extract token from "Bearer <token>" format
+    token = authorization
+    if authorization.startswith("Bearer "):
+        token = authorization[7:]
+    
+    patient = await validate_token(token)
+    if not patient:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "Unauthorized",
+                "message_ar": "غير مصرح. يرجى تسجيل الدخول.",
+                "message_en": "Unauthorized. Please log in."
+            }
+        )
+    
+    return patient

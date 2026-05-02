@@ -1,51 +1,40 @@
-# Python
-**/__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-**/env/
-**/venv/
-**/.venv/
-ENV/
-env.bak/
-venv.bak/
-.eggs/
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Build artifacts
 dist/
 build/
-*.egg-info/
-
-# Node
-**/node_modules/
-**/dist/
-.npm/
-.yarn/
-yarn-error.log
+target/
 
 # Environment
 .env
 .env.local
-.env.*.local
-clinics_registry.json
+*.env.*
 
-# Database
-*.db
-*.sqlite3
-
-# IDE
+# Editors
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
+
+# Logs
+*.log
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-logs/
-
-#ignore vscode AI rules
-.github/instructions/codacy.instructions.md
+# Compiled
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out

@@ -7,7 +7,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, Form, Request
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, Form, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -36,12 +36,15 @@ from database import (
 )
 from queue_manager import queue_manager
 from gemma_client import health_check
-from auth import request_otp, verify_otp, get_auth_error_message
+from auth import request_otp, verify_otp, get_auth_error_message, validate_token, get_current_patient
 from registry import register_clinic, get_nearby_clinics, get_local_clinic
 
 
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address)
+
+# Force HTTPS by default in production
+FORCE_HTTPS_DEFAULT = "true"
 
 
 class OTPRequest(BaseModel):
@@ -52,13 +55,11 @@ class OTPVerifyRequest(BaseModel):
     code: str
 
 class ChatRequest(BaseModel):
-    patient_id: str
     message: str
     image_base64: Optional[str] = None
 
 
 class NotifyClinicRequest(BaseModel):
-    patient_id: str
     patient_phone: str
     patient_name: Optional[str] = None
     consent_given: bool
@@ -155,9 +156,15 @@ from fastapi.responses import RedirectResponse, JSONResponse
 
 @app.middleware("http")
 async def https_redirect(request: Request, call_next):
-    if request.url.scheme == "http" and os.getenv("FORCE_HTTPS") == "true":
+    # Force HTTPS by default unless explicitly disabled for local dev
+    force_https = os.getenv("FORCE_HTTPS", FORCE_HTTPS_DEFAULT).lower() == "true"
+    if request.url.scheme == "http" and force_https:
         return RedirectResponse(url=request.url.replace(scheme="https"), status_code=301)
-    return await call_next(request)
+    response = await call_next(request)
+    # Add HSTS header when using HTTPS
+    if force_https and request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # CORS
 app.add_middleware(
@@ -219,8 +226,11 @@ async def verify_otp_endpoint(request: Request, data: OTPVerifyRequest):
 
 @app.post("/api/chat")
 @limiter.limit("15/minute")
-async def chat_endpoint(request: ChatRequest):
-    """Submit chat request to queue"""
+async def chat_endpoint(request: ChatRequest, patient: dict = Depends(get_current_patient)):
+    """Submit chat request to queue - validates ownership"""
+    # Use the authenticated patient_id from token
+    patient_id = patient["id"]
+    
     if not request.message and not request.image_base64:
         raise HTTPException(status_code=400, detail="Message or image required")
 
@@ -249,9 +259,6 @@ async def chat_endpoint(request: ChatRequest):
             if isinstance(e, HTTPException):
                 raise e
             raise HTTPException(400, "Invalid image data")
-
-    # Use the real patient_id from the device
-    patient_id = request.patient_id
 
     # Submit to queue
     queue_id = await queue_manager.submit(patient_id, {
@@ -286,16 +293,27 @@ async def chat_endpoint(request: ChatRequest):
 
 
 @app.get("/api/queue-status")
-async def queue_status(request_id: str, patient_id: Optional[str] = None):
-    """Get status of a queue request"""
-    # patient_id is logged for tracking multiple devices
-    status = await queue_manager.get_status(request_id)
-    return status
+async def queue_status(request_id: str, patient: dict = Depends(get_current_patient)):
+    """Get status of a queue request - validates ownership"""
+    # Get the queue item first to check existence
+    from database import get_queue_item
+    queue_item = await get_queue_item(request_id)
+    
+    if not queue_item:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # Verify ownership - prevent IDOR attack
+    if queue_item["patient_id"] != patient["id"]:
+        print(f"IDOR attempt detected: patient {patient['id']} tried to access {request_id}")
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    item = await queue_manager.get_status(request_id)
+    return item
 
 
 @app.post("/api/notify-clinic")
 @limiter.limit("5/minute")
-async def notify_clinic(request: NotifyClinicRequest):
+async def notify_clinic(request: NotifyClinicRequest, patient: dict = Depends(get_current_patient)):
     """Notify clinic about patient session"""
     if not request.consent_given:
         raise HTTPException(
@@ -303,8 +321,8 @@ async def notify_clinic(request: NotifyClinicRequest):
             detail="Patient consent is required to notify clinic"
         )
 
-    # Use the real patient_id
-    patient_id = request.patient_id
+    # Use the authenticated patient_id
+    patient_id = patient["id"]
 
     # Create notification in database
     notification_id = await create_notification(
@@ -321,7 +339,7 @@ async def notify_clinic(request: NotifyClinicRequest):
         "notification_id": notification_id,
         "patient_phone": request.patient_phone,
         "patient_name": request.patient_name or "مريض مجهول",
-        "summary": request.summary or "طلب استشارة طبيب",
+        "summary": "طلب استشارة طبيب",
         "urgency_level": "PENDING",
         "patient_id": patient_id
     })

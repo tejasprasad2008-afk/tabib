@@ -40,16 +40,19 @@ export default function OTPVerify() {
     setError(null);
 
     try {
-      await new Promise(r => setTimeout(r, 1000));
+      const response = await apiRequest<{ token: string, patient_id: string }>("/api/auth/verify-otp", {
+        method: "POST",
+        body: JSON.stringify({ phone, code: otpValue }),
+      });
       
-      if (otpValue === "123456") {
-        localStorage.setItem("tabib_token", "mock_jwt_token_123");
-        localStorage.setItem("tabib_patient_id", "patient_abc123");
-        setLocation("/app/chat");
-      } else {
-        throw new Error("Invalid OTP");
-      }
+      // Store auth token and patient info
+      localStorage.setItem("tabib_token", response.token);
+      localStorage.setItem("tabib_patient_id", response.patient_id);
+      localStorage.setItem("tabib_patient_phone", phone);
+      
+      setLocation("/app/chat");
     } catch (err: any) {
+      console.error("OTP verification failed:", err);
       setError("الرمز غير صحيح. يرجى المحاولة مرة أخرى.\nInvalid code. Please try again.");
     } finally {
       setIsLoading(false);

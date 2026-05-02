@@ -21,16 +21,41 @@ export default function QueueStatus() {
   const fetchQueue = async () => {
     setError(null);
     try {
-      const patientId = localStorage.getItem("tabib_patient_id") || "demo_patient";
+      // Get the last request_id from localStorage (set after chat submission)
+      const requestId = localStorage.getItem("tabib_last_request_id");
       
-      await new Promise(r => setTimeout(r, 800));
-      setData({
-        position: 3,
-        estimatedWaitMinutes: 15,
-        emergencyLevel: "see_doctor",
-        lastUpdated: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
-      });
+      if (!requestId) {
+        setError("لا توجد طلبات في الطابور.\nNo queue requests found.");
+        return;
+      }
+      
+      // Fetch queue status with request_id query param
+      const statusWithId = await apiRequest<{ status: string, queue_position: number, response?: any }>(
+        `/api/queue-status?request_id=${encodeURIComponent(requestId)}`
+      );
+      
+      if (statusWithId.status === "done" && statusWithId.response) {
+        const urgency = statusWithId.response.urgency || "home_care";
+        let emergencyLevel: "emergency" | "see_doctor" | "home_care" = "home_care";
+        if (urgency === "EMERGENCY") emergencyLevel = "emergency";
+        else if (urgency === "SEE_A_DOCTOR") emergencyLevel = "see_doctor";
+        
+        setData({
+          position: 0,
+          estimatedWaitMinutes: 0,
+          emergencyLevel,
+          lastUpdated: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+        });
+      } else if (statusWithId.status === "pending" || statusWithId.status === "processing") {
+        setData({
+          position: statusWithId.queue_position + 1,
+          estimatedWaitMinutes: (statusWithId.queue_position + 1) * 5,
+          emergencyLevel: "home_care",
+          lastUpdated: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+        });
+      }
     } catch (err) {
+      console.error("Queue status error:", err);
       setError("حدث خطأ أثناء تحديث حالة الطابور.\nError fetching queue status.");
     }
   };
