@@ -9,7 +9,7 @@
 [![Built with Gemma 4](https://img.shields.io/badge/Built%20with-Gemma%204-4285F4?logo=google)](https://ai.google.dev/gemma)
 [![Offline-First](https://img.shields.io/badge/Offline--First-green)](#)
 [![Arabic-First](https://img.shields.io/badge/Arabic--First-orange)](#)
-[![License: CC-BY 4.0](https://img.shields.io/badge/License-CC--BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
 
@@ -150,6 +150,61 @@ The installer will download the Gemma 4 model (~18GB). Estimated times:
 | 100 Mbps | ~25 minutes |
 | 200 Mbps | ~12 minutes |
 
+**Do not interrupt this download.** If it fails, re-run the installer.
+
+### Step 3: Answer the Setup Questions
+
+The installer will ask you:
+
+1.  **Clinic name** — Enter your clinic's official name (e.g., "Al-Noor Medical Center")
+2.  **City** — Your city name (e.g., "Dubai", "Riyadh", "Cairo")
+3.  **Contact phone** — Clinic phone number for patients
+4.  **Auto-detect location?** — Type `y` to use your current location, or `n` to enter manually
+
+The installer will also generate a **6-digit PIN** for your nurse dashboard. **Write this down!** You will need it to access the dashboard.
+
+### Step 4: Confirm Your Server Is Running
+
+After setup completes, the server should start automatically. To verify:
+
+1.  Open your browser
+2.  Go to: `http://localhost:8000/health`
+3.  You should see a page showing `"status": "ok"`
+
+If you see an error, check that:
+- Port 8000 is not blocked by your firewall
+- Ollama is running (search for "Ollama" in your system tray)
+
+### Step 5: Share Your Clinic URL with Patients
+
+Patients need a web address to access your clinic. You have three options:
+
+**Option A: Use Your Public IP (Quick Test)**
+
+Find your public IP by visiting: https://ifconfig.me
+
+Your clinic URL will be: `http://YOUR_PUBLIC_IP:8000`
+
+**Option B: Get a Free Domain (Recommended for Small Clinics)**
+
+Use DuckDNS (free) to get a permanent address:
+
+1.  Visit https://www.duckdns.org
+2.  Create a free account
+3.  Choose a subdomain (e.g., `alnoor-clinic.duckdns.org`)
+4.  Follow their instructions to keep it updated
+
+Your clinic URL becomes: `http://alnoor-clinic.duckdns.org:8000`
+
+**Option C: Use ngrok for Testing (5 Minutes)**
+
+For immediate testing without network configuration:
+
+1.  Download ngrok from https://ngrok.com
+2.  Run: `ngrok http 8000`
+3.  Copy the HTTPS URL it gives you (e.g., `https://abc123.ngrok.io`)
+4.  Share this URL with patients
+
 ---
 
 ## 🌐 Network Setup Guide
@@ -168,11 +223,31 @@ ngrok http 8000
 
 ### 5b. FOR SMALL CLINICS: Port Forwarding
 
-For long-term use, we recommend using a Dynamic DNS provider like [DuckDNS](https://www.duckdns.org). 
+**What is port forwarding?**
 
-1. Find your clinic computer's local IP.
-2. Log into your router and forward port 8000 to that IP.
-3. Your clinic URL will be `http://your-subdomain.duckdns.org:8000`.
+Your clinic computer has a private address inside your network (like `192.168.1.50`). Port forwarding tells your router: "When someone from outside tries to reach port 8000, send them to my clinic computer."
+
+**Steps (generic — every router is different):**
+
+1.  Find your clinic computer's local IP:
+    - Windows: Open Command Prompt, type `ipconfig`, look for "IPv4 Address"
+    - Mac/Linux: Open Terminal, type `hostname -I` or `ifconfig`
+
+2.  Log into your router (usually `192.168.1.1` or `192.168.0.1`)
+
+3.  Find "Port Forwarding" or "Virtual Server" settings
+
+4.  Add a new rule:
+    - **External Port:** 8000
+    - **Internal Port:** 8000
+    - **Internal IP:** Your clinic computer's IP (from step 1)
+    - **Protocol:** TCP
+
+5.  Save and restart your router
+
+6.  Find your public IP: Visit https://ifconfig.me
+
+7.  Your clinic URL: `http://YOUR_PUBLIC_IP:8000`
 
 ---
 
@@ -180,7 +255,12 @@ For long-term use, we recommend using a Dynamic DNS provider like [DuckDNS](http
 
 ### 6a. Architecture Overview
 
-Tabib is a decentralized medical triage system built with React, FastAPI, and Gemma 4. All AI inference happens locally via Ollama.
+Tabib is a decentralized medical triage system built with:
+
+- **Frontend:** React + Vite + TypeScript + Tailwind CSS v4 (Progressive Web App)
+- **Backend:** FastAPI (Python 3.11+) with SQLite database
+- **AI Inference:** Gemma 4 via Ollama (local, no cloud API calls)
+- **Real-time:** WebSocket for nurse dashboard notifications
 
 ### 6b. Project Structure
 
@@ -193,13 +273,17 @@ tabib/
 
 ### 6c. Local Development Setup
 
+**Step 1: Set up the backend**
+
 ```bash
-# Backend
 cd tabib-clinic-server
 pip install -r requirements.txt
-python main.py
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
 
-# Frontend
+**Step 2: Set up the frontend**
+
+```bash
 cd frontend
 npm install
 npm run dev
@@ -238,6 +322,19 @@ Copy the `.env.example` file to `.env` in the server directory and fill in your 
 
 ---
 
+## 📱 Patient Guide
+
+**How to use Tabib:**
+
+1.  Open your clinic's web address in your phone browser.
+2.  Choose your language (Arabic or English).
+3.  Enter your phone number and the verification code.
+4.  Type or speak how you are feeling.
+5.  Wait a few seconds for your result: 🟢 Home Care / 🟡 See a Doctor / 🔴 Emergency.
+6.  If your result says 🔴 or 🟡, you can tap **"Notify my clinic"** and a nurse will call you back.
+
+---
+
 ## 🔒 Privacy & Data Protection
 
 - **Local-Only Inference**: No medical data is sent to external AI providers.
@@ -246,9 +343,19 @@ Copy the `.env.example` file to `.env` in the server directory and fill in your 
 
 ---
 
+## 📜 Acknowledgments & License
+
+**Built for:** Gemma 4 Good Hackathon by Google/Kaggle
+
+**Powered by:** Gemma 4, Ollama, FastAPI, and React.
+
+**License:** MIT License ([MIT](https://opensource.org/licenses/MIT))
+
+---
+
 <div align="center">
 
-**Built for the Gemma 4 Good Hackathon.**
+**Need help?** Open an issue on GitHub or contact your clinic administrator.
 
 **Built with ❤️ for better healthcare access in Arabic-speaking communities**
 
