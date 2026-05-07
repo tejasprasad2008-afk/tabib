@@ -13,11 +13,11 @@ export default function SplashScreen() {
       setTimeout(() => {
         const hasToken = localStorage.getItem("tabib_token");
         if (hasToken) {
-          setLocation("/app/chat");
+          setLocation("/chat");
         } else {
-          setLocation("/app/onboarding");
+          setLocation("/onboarding");
         }
-      }, 300);
+      }, 300); // Wait for fade out
     }, 2000);
 
     return () => clearTimeout(timer);

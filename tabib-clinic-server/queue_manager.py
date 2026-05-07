@@ -16,15 +16,22 @@ from database import (
     get_queue_position,
     get_pending_queue_items,
     reset_pending_queue,
-    get_queue_stats
+    get_queue_stats,
+    create_session,
+    get_latest_session,
+    update_session_messages,
+    get_patient_demographics
 )
-from gemma_client import chat, OllamaError
+from gemma_client import get_ai_client
 from prompts import TRIAGE_SYSTEM_PROMPT
 
 
 MAX_CONCURRENT = int(os.getenv("GEMMA_WORKERS", "2"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "300"))  # 5 minutes
 MAX_QUEUE_DEPTH = 10
+
+# Initialize AI client
+ai_client = get_ai_client()
 
 
 class QueueManager:
@@ -137,58 +144,84 @@ class QueueManager:
                 await update_queue_status(queue_id, "error", {"error": "Item not found"})
                 return
 
-            # Process with timeout
+            # Process with timeout - include patient_id in payload
+            payload = item["request_payload"]
+            payload["patient_id"] = item.get("patient_id")
             result = await asyncio.wait_for(
-                self._run_inference(item["request_payload"]),
+                self._run_inference(payload),
                 timeout=REQUEST_TIMEOUT
             )
 
             # Mark as done
             await update_queue_status(queue_id, "done", result)
 
-        except asyncio.TimeoutError:
-            await update_queue_status(
-                queue_id,
-                "error",
-                {"error": "Request timed out. Please try again."}
-            )
-        except OllamaError as e:
-            await update_queue_status(
-                queue_id,
-                "error",
-                {"error": str(e)}
-            )
         except Exception as e:
-            await update_queue_status(
-                queue_id,
-                "error",
-                {"error": f"Unexpected error: {str(e)}"}
-            )
+            # Return patient-friendly Arabic error message
+            error_response = {
+                "urgency": "SEE_A_DOCTOR",
+                "explanation": "عذراً، حدث خطأ في معالجة طلبك. يرجى المحاولة مرة أخرى.",
+                "steps": [
+                    "حاول إرسال رسالتك مرة أخرى",
+                    "إذا استمر الخطأ، تواصل مع العيادة مباشرة"
+                ],
+                "warning_signs": [],
+                "disclaimer": "هذه المعلومات للتوجيه فقط.",
+                "error": str(e)
+            }
+            await update_queue_status(queue_id, "error", error_response)
 
     async def _run_inference(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Run Gemma inference and parse response"""
         message = payload.get("message", "")
+        patient_id = payload.get("patient_id", "")
         
         if len(message) > 2000:
             raise ValueError("Message too long")
 
-        EMERGENCY_KEYWORDS = ["chest pain", "difficulty breathing", "loss of consciousness", "severe bleeding", "stroke", "poisoning", "self-harm", "ألم في الصدر", "ضيق في التنفس", "فقدان الوعي"]
+        EMERGENCY_KEYWORDS = ["chest pain", "difficulty breathing", "loss of consciousness", "severe bleeding", "stroke", "poisoning", "self-harm", "ألم في الصدر", "ضيق في التنفس", "فقدان الوعي", "998", "999"]
         if any(keyword in message.lower() for keyword in EMERGENCY_KEYWORDS):
             return {
                 "urgency": "EMERGENCY",
-                "explanation": "System detected emergency keywords.",
-                "steps": ["Call emergency services immediately."],
+                "explanation": "System detected emergency keywords. / تم اكتشاف كلمات طوارئ.",
+                "steps": ["Call emergency services immediately (998/999).", "اتصل بخدمات الطوارئ فوراً (998/999)."],
                 "warning_signs": [],
-                "emergency_numbers": "911 / 998",
-                "disclaimer": "Automated emergency detection. Always consult a professional.",
+                "emergency_numbers": "911 / 998 / 999",
+                "disclaimer": "Automated emergency detection. / كشف تلقائي للطوارئ.",
                 "raw": message
             }
 
         image_base64 = payload.get("image_base64")
 
-        # Build messages
-        messages = [{"role": "system", "content": TRIAGE_SYSTEM_PROMPT}]
+        # Get or create session for conversation history
+        session_id = None
+        conversation_history = []
+        patient_context = ""
+        
+        if patient_id:
+            session = await get_latest_session(patient_id)
+            if session and session.get("messages"):
+                import json
+                conversation_history = json.loads(session["messages"])
+                session_id = session["id"]
+            
+            # Get patient demographics
+            demographics = await get_patient_demographics(patient_id)
+            if demographics and demographics.get("profile_completed"):
+                age = demographics.get("age", "unknown")
+                gender = demographics.get("gender", "unknown")
+                height = demographics.get("height_cm", "unknown")
+                weight = demographics.get("weight_kg", "unknown")
+                patient_context = f"\n\nPATIENT CONTEXT: Age: {age} years, Gender: {gender}, Height: {height}cm, Weight: {weight}kg"
 
+        # Build messages with conversation history and patient context
+        system_prompt = TRIAGE_SYSTEM_PROMPT + patient_context
+        messages = [{"role": "system", "content": system_prompt}]
+
+        # Add conversation history (last 6 messages to keep context but not overflow)
+        for msg in conversation_history[-6:]:
+            messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+
+        # Add current message
         if image_base64:
             content = []
             if message:
@@ -201,8 +234,20 @@ class QueueManager:
         else:
             messages.append({"role": "user", "content": message})
 
-        # Call Gemma
-        response_text = await chat(messages)
+        # Call AI Client
+        response_text = await ai_client.chat(messages)
+
+        # Save conversation to session
+        if patient_id:
+            new_message = {"role": "user", "content": message, "timestamp": datetime.now().isoformat()}
+            ai_message = {"role": "assistant", "content": response_text, "timestamp": datetime.now().isoformat()}
+            
+            if session_id:
+                # Append to existing session
+                await update_session_messages(session_id, conversation_history + [new_message, ai_message])
+            else:
+                # Create new session
+                session_id = await create_session(patient_id, [new_message, ai_message])
 
         # Parse response
         DEFAULT_DISCLAIMER = "This is an AI-generated assessment. Always consult a healthcare professional."
@@ -210,6 +255,11 @@ class QueueManager:
             result = self._parse_response(response_text)
         except Exception:
             result = {"urgency": "SEE_A_DOCTOR", "raw": response_text, "disclaimer": DEFAULT_DISCLAIMER, "steps": [], "warning_signs": [], "explanation": "", "emergency_numbers": ""}
+        
+        # Update session with urgency level
+        if session_id and result.get("urgency"):
+            from database import update_session_urgency
+            await update_session_urgency(session_id, result["urgency"])
             
         return result
 

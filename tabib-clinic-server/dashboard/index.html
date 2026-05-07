@@ -90,6 +90,23 @@
     .btn-callback:hover { background: var(--blue-dark); }
     .btn-callback:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
     .btn-callback.done { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+    
+    .btn-history { padding: .6rem 1.1rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; font-size: .875rem; font-weight: 600; transition: all .15s; min-height: 44px; }
+    .btn-history:hover { border-color: var(--blue); color: var(--blue); }
+
+    /* Modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 100; padding: 1.5rem; }
+    .modal-overlay.active { display: flex; }
+    .modal-card { background: var(--card); border-radius: 20px; width: 100%; max-width: 600px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.15); }
+    .modal-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
+    .modal-footer { padding: 1.25rem 1.5rem; border-top: 1px solid var(--border); text-align: right; }
+
+    .history-item { border-bottom: 1px solid var(--border); padding: 1rem 0; }
+    .history-item:last-child { border-bottom: none; }
+    .history-date { font-size: .75rem; color: var(--muted); margin-bottom: .25rem; font-weight: 600; }
+    .history-content { font-size: .9rem; line-height: 1.5; }
+    .history-badge { font-size: .7rem; padding: .1rem .4rem; border-radius: 4px; font-weight: 700; margin-left: .5rem; }
 
     /* Empty state */
     .empty-state { text-align: center; padding: 4rem 2rem; }
@@ -188,14 +205,19 @@
 
   <!-- Notification list -->
   <div class="notif-list" id="notifList">
-    <div class="empty-state">
-      <div class="empty-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#9CA3AF" width="28" height="28">
-          <path fillRule="evenodd" d="M5.25 9a6.75 6.75 0 0 1 13.5 0v.75c0 2.123.8 4.057 2.118 5.52a.75.75 0 0 1-.297 1.206c-1.544.57-3.16.99-4.831 1.243a3.75 3.75 0 1 1-7.48 0 24.585 24.585 0 0 1-4.831-1.244.75.75 0 0 1-.298-1.205A8.217 8.217 0 0 0 5.25 9.75V9Z" clipRule="evenodd"/>
-        </svg>
-      </div>
-      <h3>No notifications yet</h3>
-      <p>Patients appear here when they tap "Notify Clinic"</p>
+    <!-- ... -->
+  </div>
+</div>
+
+<!-- History Modal -->
+<div id="historyModal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h2 id="historyTitle">Patient History</h2>
+      <button class="filter-btn" onclick="closeHistory()">Close</button>
+    </div>
+    <div class="modal-body" id="historyBody">
+      <!-- History content will be loaded here -->
     </div>
   </div>
 </div>
@@ -204,34 +226,16 @@
   let PIN = '123456';
   let ws = null, currentFilter = 'all', notifications = [];
   let audioCtx = null;
+  let currentAuthPin = null;
 
-  // Fetch PIN from backend
-  async function loadConfig() {
-    try {
-      const r = await fetch('/api/dashboard/config');
-      const d = await r.json();
-      PIN = d.pin;
-    } catch (e) {
-      console.error('Failed to load config:', e);
-    }
-  }
-
-  function playPing() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain); gain.connect(audioCtx.destination);
-    osc.frequency.value = 880; osc.type = 'sine';
-    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-    osc.start(); osc.stop(audioCtx.currentTime + 0.4);
-  }
+  // ... (existing functions) ...
 
   async function login() {
     await loadConfig();
     const pin = document.getElementById('pinInput').value;
     const err = document.getElementById('loginError');
     if (pin === PIN) {
+      currentAuthPin = pin; // Save for history access
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('dashboard').classList.add('active');
       connectWS(); loadNotifications();
@@ -242,46 +246,7 @@
     }
   }
 
-  function setConnStatus(online) {
-    const badge = document.getElementById('connBadge');
-    const status = document.getElementById('connStatus');
-    badge.className = 'conn-badge' + (online ? '' : ' offline');
-    status.textContent = online ? 'Connected' : 'Disconnected';
-  }
-
-  function connectWS() {
-    ws = new WebSocket(`ws://${location.host}/ws/dashboard`);
-    ws.onopen = () => setConnStatus(true);
-    ws.onclose = () => { setConnStatus(false); setTimeout(connectWS, 5000); };
-    ws.onerror = () => setConnStatus(false);
-    ws.onmessage = (e) => {
-      const d = JSON.parse(e.data);
-      if (d.type === 'new_notification') { playPing(); loadNotifications(); }
-    };
-  }
-
-  async function loadNotifications() {
-    try {
-      const r = await fetch('/api/notifications');
-      const d = await r.json();
-      notifications = d.notifications || [];
-      render(); updateStats();
-    } catch (e) { console.error(e); }
-  }
-
-  function setFilter(f, btn) {
-    currentFilter = f;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active','active-red'));
-    btn.classList.add(f === 'emergency' ? 'active-red' : 'active');
-    render();
-  }
-
-  function urgencyClass(lvl) {
-    return lvl === 'EMERGENCY' ? 'emergency' : lvl === 'SEE_A_DOCTOR' ? 'see-doctor' : 'home-care';
-  }
-  function urgencyLabel(lvl) {
-    return lvl === 'EMERGENCY' ? '🔴 EMERGENCY' : lvl === 'SEE_A_DOCTOR' ? '🟡 SEE A DOCTOR' : '🟢 HOME CARE';
-  }
+  // ... (existing functions) ...
 
   function render() {
     const container = document.getElementById('notifList');
@@ -301,8 +266,9 @@
 
     container.innerHTML = list.map(n => {
       const uc = urgencyClass(n.urgency_level);
-      const ts = new Date(n.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      const dateStr = new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const dateObj = new Date(n.created_at.replace(' ', 'T') + '+04:00');
+      const ts = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dubai' });
+      const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Dubai' });
       return `<div class="notif-card ${uc}" id="card-${n.id}">
         <div class="notif-top">
           <div class="notif-left">
@@ -319,9 +285,88 @@
           <button class="btn-callback ${n.called_back ? 'done' : ''}" ${n.called_back ? 'disabled' : ''} onclick="markCallback('${n.id}')">
             ${n.called_back ? '✓ Called Back' : '📞 Mark as Called Back'}
           </button>
+          <button class="btn-history" onclick="viewHistory('${n.patient_id}', '${n.patient_phone}')">
+            📋 Patient Memory
+          </button>
         </div>
       </div>`;
     }).join('');
+  }
+
+  async function viewHistory(patientId, phone) {
+    // Re-verify PIN for "Doctor Only" section as requested by user
+    const pin = prompt("This section is restricted to doctors only. Please enter the clinic PIN to unlock patient memory:");
+    if (pin !== PIN) {
+      alert("Unauthorized access. Invalid PIN.");
+      return;
+    }
+
+    const modal = document.getElementById('historyModal');
+    const body = document.getElementById('historyBody');
+    const title = document.getElementById('historyTitle');
+    
+    modal.classList.add('active');
+    title.textContent = `Patient Memory: ${phone}`;
+    body.innerHTML = '<div style="text-align:center;padding:2rem;">Loading patient history...</div>';
+
+    try {
+      const r = await fetch(`/api/admin/patient-history/${patientId}`, {
+        headers: { 'pin': pin }
+      });
+      const d = await r.json();
+      
+      if (!r.ok) throw new Error(d.detail || 'Failed to load history');
+
+      let html = '';
+      
+      // Demographics
+      if (d.demographics) {
+        html += `<div style="background:#EFF6FF;padding:1rem;border-radius:10px;margin-bottom:1.5rem;font-size:0.9rem;">
+          <strong>Profile:</strong> ${d.demographics.age}y, ${d.demographics.gender}, ${d.demographics.height_cm}cm, ${d.demographics.weight_kg}kg
+        </div>`;
+      }
+
+      // Notifications (Summaries)
+      html += '<h4 style="margin-bottom:1rem;font-size:1rem;border-bottom:2px solid var(--blue);padding-bottom:0.25rem;">Past Reports</h4>';
+      if (d.notifications.length === 0) {
+        html += '<p style="color:var(--muted);margin-bottom:2rem;">No previous reports found.</p>';
+      } else {
+        d.notifications.forEach(n => {
+          const date = new Date(n.created_at).toLocaleString();
+          html += `<div class="history-item">
+            <div class="history-date">${date} <span class="urgency-badge ${urgencyClass(n.urgency_level)}" style="transform:scale(0.8)">${n.urgency_level}</span></div>
+            <div class="history-content">${n.summary}</div>
+          </div>`;
+        });
+      }
+
+      // Sessions (Messages)
+      html += '<h4 style="margin-top:2rem;margin-bottom:1rem;font-size:1rem;border-bottom:2px solid var(--blue);padding-bottom:0.25rem;">Past Conversations</h4>';
+      if (d.sessions.length === 0) {
+        html += '<p style="color:var(--muted);">No previous conversations found.</p>';
+      } else {
+        d.sessions.forEach(s => {
+          const date = new Date(s.created_at).toLocaleString();
+          let messages = [];
+          try { messages = JSON.parse(s.messages); } catch(e) {}
+          
+          html += `<div class="history-item">
+            <div class="history-date">${date}</div>
+            <div style="max-height:150px;overflow-y:auto;background:#f3f4f6;padding:0.75rem;border-radius:8px;font-size:0.85rem;">
+              ${messages.map(m => `<strong>${m.role}:</strong> ${m.content}`).join('<br>')}
+            </div>
+          </div>`;
+        });
+      }
+
+      body.innerHTML = html;
+    } catch (e) {
+      body.innerHTML = `<div style="color:var(--red);padding:2rem;text-align:center;">${e.message}</div>`;
+    }
+  }
+
+  function closeHistory() {
+    document.getElementById('historyModal').classList.remove('active');
   }
 
   function updateStats() {

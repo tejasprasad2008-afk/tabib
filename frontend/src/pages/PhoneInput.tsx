@@ -38,11 +38,11 @@ export default function PhoneInput() {
       });
 
       localStorage.setItem("tabib_phone", formattedPhone);
-      setLocation("/app/otp");
+      setLocation("/otp");
     } catch (err: any) {
       console.warn("API Error, continuing for demo purposes:", err);
       localStorage.setItem("tabib_phone", formattedPhone);
-      setLocation("/app/otp");
+      setLocation("/otp");
     } finally {
       setIsLoading(false);
     }

@@ -60,6 +60,7 @@ export default function ChatScreen() {
     if (!input.trim() && !imageFile) return;
     if (navigator.vibrate) navigator.vibrate(10);
 
+    const userText = input;
     const newMessage: Message = {
       id: Date.now().toString(),
       text: input,
@@ -74,29 +75,29 @@ export default function ChatScreen() {
     setIsTyping(true);
 
     try {
-      const patientId = localStorage.getItem("tabib_patient_id") || "demo_patient";
-      
-      // Mocking API call
-      // await apiRequest("/api/chat", {
-      //   method: "POST",
-      //   body: JSON.stringify({ patient_id: patientId, message: newMessage.text, image_base64: newMessage.image })
-      // });
-      
-      await new Promise(r => setTimeout(r, 1500));
+      const response = await apiRequest<{ response: string, structured?: any, request_id?: string }>("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({ message: userText, image_base64: imageFile || undefined })
+      });
       
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: "شكراً لمشاركتك هذه المعلومات. هل تعاني من أي أعراض أخرى مثل ارتفاع درجة الحرارة أو الصداع؟",
+        text: response.response,
         sender: "ai",
         timestamp: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
       };
       
       setMessages(prev => [...prev, aiResponse]);
+
+      // If urgency is high, show notify banner immediately
+      if (response.structured?.urgency === "SEE_A_DOCTOR" || response.structured?.urgency === "EMERGENCY") {
+        setShowNotifyBanner(true);
+      }
     } catch (error) {
       console.error(error);
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: "عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.",
+        text: "عذراً، حدث خطأ في الاتصال بالخادم الطبي. يرجى المحاولة مرة أخرى.",
         sender: "ai",
         timestamp: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
       };
@@ -111,13 +112,12 @@ export default function ChatScreen() {
     setIsNotifying(true);
     
     try {
-      const patientId = localStorage.getItem("tabib_patient_id") || "demo_patient";
-      // await apiRequest("/api/notify-clinic", {
-      //   method: "POST",
-      //   body: JSON.stringify({ patient_id: patientId, consent: true })
-      // });
+      const patientPhone = localStorage.getItem("tabib_patient_phone") || "+971000000000";
+      await apiRequest("/api/notify-clinic", {
+        method: "POST",
+        body: JSON.stringify({ patient_phone: patientPhone, consent_given: true })
+      });
       
-      await new Promise(r => setTimeout(r, 1000));
       setLocation("/success");
     } catch (error) {
       console.error(error);

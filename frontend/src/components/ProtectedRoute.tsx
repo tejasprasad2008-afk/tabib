@@ -11,7 +11,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   useEffect(() => {
     if (!token) {
-      setLocation("/app");
+      setLocation("/phone");
     }
   }, [token, setLocation]);
 

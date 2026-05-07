@@ -1,0 +1,16 @@
+{
+  "clinics": [
+    {
+      "id": "test-clinic-001",
+      "name": "عيادة العين التجريبية",
+      "name_en": "Test Clinic Al Ain",
+      "city": "العين",
+      "city_en": "Al Ain",
+      "lat": 24.2075,
+      "lng": 55.7447,
+      "url": "http://localhost:8000",
+      "phone": "+97137000000",
+      "authority": "DoH"
+    }
+  ]
+}

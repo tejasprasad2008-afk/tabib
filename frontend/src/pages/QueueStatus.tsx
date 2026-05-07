@@ -21,41 +21,25 @@ export default function QueueStatus() {
   const fetchQueue = async () => {
     setError(null);
     try {
-      // Get the last request_id from localStorage (set after chat submission)
-      const requestId = localStorage.getItem("tabib_last_request_id");
+      const response = await apiRequest<{
+        position: number;
+        pending: number;
+        processing: number;
+        estimated_wait: number;
+      }>("GET", "/api/live-stats");
       
-      if (!requestId) {
-        setError("لا توجد طلبات في الطابور.\nNo queue requests found.");
-        return;
-      }
-      
-      // Fetch queue status with request_id query param
-      const statusWithId = await apiRequest<{ status: string, queue_position: number, response?: any }>(
-        `/api/queue-status?request_id=${encodeURIComponent(requestId)}`
-      );
-      
-      if (statusWithId.status === "done" && statusWithId.response) {
-        const urgency = statusWithId.response.urgency || "home_care";
-        let emergencyLevel: "emergency" | "see_doctor" | "home_care" = "home_care";
-        if (urgency === "EMERGENCY") emergencyLevel = "emergency";
-        else if (urgency === "SEE_A_DOCTOR") emergencyLevel = "see_doctor";
+      if (response) {
+        // Get emergency level from local storage if set, otherwise default
+        const savedLevel = localStorage.getItem("tabib_last_urgency") as "emergency" | "see_doctor" | "home_care";
         
         setData({
-          position: 0,
-          estimatedWaitMinutes: 0,
-          emergencyLevel,
-          lastUpdated: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
-        });
-      } else if (statusWithId.status === "pending" || statusWithId.status === "processing") {
-        setData({
-          position: statusWithId.queue_position + 1,
-          estimatedWaitMinutes: (statusWithId.queue_position + 1) * 5,
-          emergencyLevel: "home_care",
+          position: response.position,
+          estimatedWaitMinutes: response.estimated_wait,
+          emergencyLevel: savedLevel || "see_doctor",
           lastUpdated: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
         });
       }
     } catch (err) {
-      console.error("Queue status error:", err);
       setError("حدث خطأ أثناء تحديث حالة الطابور.\nError fetching queue status.");
     }
   };
@@ -67,7 +51,7 @@ export default function QueueStatus() {
     const interval = setInterval(() => {
       setIsRefreshing(true);
       fetchQueue().finally(() => setIsRefreshing(false));
-    }, 30000);
+    }, 30000); // 30s
     
     return () => clearInterval(interval);
   }, []);

@@ -5,9 +5,9 @@ export default function BottomNav() {
   const [location, setLocation] = useLocation();
 
   const tabs = [
-    { id: "chat", path: "/app/chat", label: "المحادثة", icon: MessageSquare },
-    { id: "queue", path: "/app/queue", label: "الطابور", icon: Clock },
-    { id: "profile", path: "/app/profile", label: "الملف", icon: User },
+    { id: "chat", path: "/chat", label: "المحادثة", icon: MessageSquare },
+    { id: "queue", path: "/queue", label: "الطابور", icon: Clock },
+    { id: "profile", path: "/profile", label: "الملف", icon: User },
   ];
 
   return (

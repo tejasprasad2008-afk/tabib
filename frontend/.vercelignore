@@ -1,0 +1,10 @@
+node_modules
+dist
+.vercel
+Attached-Assets
+Cinematic-Setup-Guide
+frontend_backup
+*.local
+.git
+.idea
+.vscode

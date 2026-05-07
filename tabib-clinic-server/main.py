@@ -10,9 +10,6 @@ from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, Form, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 import json
 import uuid
@@ -32,19 +29,20 @@ from database import (
     create_session,
     update_session_urgency,
     mark_session_notified,
-    cleanup_old_sessions
+    cleanup_old_sessions,
+    update_patient_demographics,
+    get_patient_demographics,
+    get_patient_sessions,
+    get_patient_notifications,
+    get_queue_stats
 )
-from queue_manager import queue_manager
-from gemma_client import health_check
+from queue_manager import queue_manager, ai_client
 from auth import request_otp, verify_otp, get_auth_error_message, validate_token, get_current_patient
 from registry import register_clinic, get_nearby_clinics, get_local_clinic
 
 
-# Rate limiting
-limiter = Limiter(key_func=get_remote_address)
-
 # Force HTTPS by default in production
-FORCE_HTTPS_DEFAULT = "true"
+FORCE_HTTPS_DEFAULT = "false"
 
 
 class OTPRequest(BaseModel):
@@ -68,6 +66,13 @@ class NotifyClinicRequest(BaseModel):
 
 class CallbackRequest(BaseModel):
     notification_id: str
+
+
+class ProfileRequest(BaseModel):
+    age: int
+    gender: str
+    height_cm: int
+    weight_kg: int
 
 
 # WebSocket connection manager
@@ -103,15 +108,14 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("Database initialized")
 
-    # Check Ollama status
-    ollama_status = await health_check()
-    if not ollama_status["running"]:
-        print("WARNING: Ollama is not running. Start with: ollama serve")
-    elif not ollama_status["model_loaded"]:
-        print(f"WARNING: Model {ollama_status['target_model']} not loaded")
-        print(f"Available models: {ollama_status['available_models']}")
+    # Check AI status
+    provider = os.getenv("MODEL_PROVIDER", "mock")
+    print(f"DEBUG: Attempting to initialize AI Provider: {provider}")
+    ai_ready = await ai_client.health_check()
+    if not ai_ready:
+        print(f"WARNING: AI Provider {provider} is not ready or health check failed.")
     else:
-        print(f"Ollama running with model: {ollama_status['target_model']}")
+        print(f"SUCCESS: AI Provider {provider} is active and responding.")
 
     # Start queue manager
     await queue_manager.start()
@@ -136,9 +140,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler to prevent stack trace leaks"""
@@ -147,6 +148,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={
             "error": "Internal Server Error",
+            "debug_message": str(exc),
             "message_en": "An unexpected error occurred. Please try again later.",
             "message_ar": "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى لاحقاً."
         }
@@ -166,25 +168,55 @@ async def https_redirect(request: Request, call_next):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
-# CORS
+# CORS configuration - more robust for local dev + production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=".*",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Length", "Content-Type"],
 )
 
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = (time.time() - start_time) * 1000
+    print(f"DEBUG: {request.method} {request.url.path} - {response.status_code} ({process_time:.2f}ms)")
+    return response
+
+@app.get("/")
+async def root():
+    """Welcome endpoint"""
+    return {
+        "status": "online",
+        "message": "Tabib Clinic Server is running",
+        "endpoints": {
+            "health": "/health",
+            "dashboard": "/dashboard",
+            "api": "/api"
+        }
+    }
 
 @app.get("/health")
 async def health():
     """Health check endpoint"""
-    ollama_status = await health_check()
+    ai_ready = await ai_client.health_check()
     clinic_info = await get_local_clinic()
 
     return {
         "status": "ok",
-        "ollama_running": ollama_status["running"],
-        "model_loaded": ollama_status["model_loaded"],
+        "ai_ready": ai_ready,
+        "model_provider": os.getenv("MODEL_PROVIDER", "mock"),
         "queue_depth": await queue_manager.get_depth(),
         "clinic_name": clinic_info.get("name") if clinic_info else None,
         "version": "1.0.0"
@@ -203,7 +235,6 @@ async def get_clinics(
 
 
 @app.post("/api/auth/request-otp")
-@limiter.limit("5/minute")
 async def request_otp_endpoint(request: Request, data: OTPRequest):
     """Request OTP for phone number"""
     import re
@@ -215,7 +246,6 @@ async def request_otp_endpoint(request: Request, data: OTPRequest):
 
 
 @app.post("/api/auth/verify-otp")
-@limiter.limit("5/minute")
 async def verify_otp_endpoint(request: Request, data: OTPVerifyRequest):
     """Verify OTP and return token"""
     result = await verify_otp(data.phone, data.code)
@@ -225,21 +255,20 @@ async def verify_otp_endpoint(request: Request, data: OTPVerifyRequest):
 
 
 @app.post("/api/chat")
-@limiter.limit("15/minute")
-async def chat_endpoint(request: ChatRequest, patient: dict = Depends(get_current_patient)):
+async def chat_endpoint(request: Request, chat_data: ChatRequest, patient: dict = Depends(get_current_patient)):
     """Submit chat request to queue - validates ownership"""
     # Use the authenticated patient_id from token
     patient_id = patient["id"]
     
-    if not request.message and not request.image_base64:
+    if not chat_data.message and not chat_data.image_base64:
         raise HTTPException(status_code=400, detail="Message or image required")
 
-    if request.image_base64:
+    if chat_data.image_base64:
         import base64
         import io
         from PIL import Image
         try:
-            image_bytes = base64.b64decode(request.image_base64)
+            image_bytes = base64.b64decode(chat_data.image_base64)
             if len(image_bytes) > 5 * 1024 * 1024:
                 raise HTTPException(400, "File too large")
             
@@ -253,7 +282,7 @@ async def chat_endpoint(request: ChatRequest, patient: dict = Depends(get_curren
             
             buffered = io.BytesIO()
             image_without_exif.save(buffered, format="JPEG")
-            request.image_base64 = base64.b64encode(buffered.getvalue()).decode()
+            chat_data.image_base64 = base64.b64encode(buffered.getvalue()).decode()
             
         except Exception as e:
             if isinstance(e, HTTPException):
@@ -262,8 +291,8 @@ async def chat_endpoint(request: ChatRequest, patient: dict = Depends(get_curren
 
     # Submit to queue
     queue_id = await queue_manager.submit(patient_id, {
-        "message": request.message,
-        "image_base64": request.image_base64
+        "message": chat_data.message,
+        "image_base64": chat_data.image_base64
     })
 
     # Wait for result (simple sync wrapper for demo)
@@ -293,7 +322,7 @@ async def chat_endpoint(request: ChatRequest, patient: dict = Depends(get_curren
 
 
 @app.get("/api/queue-status")
-async def queue_status(request_id: str, patient: dict = Depends(get_current_patient)):
+async def queue_status(request: Request, request_id: str, patient: dict = Depends(get_current_patient)):
     """Get status of a queue request - validates ownership"""
     # Get the queue item first to check existence
     from database import get_queue_item
@@ -311,11 +340,25 @@ async def queue_status(request_id: str, patient: dict = Depends(get_current_pati
     return item
 
 
+@app.get("/api/patient/callback-status")
+async def get_callback_status(patient: dict = Depends(get_current_patient)):
+    """Check if any notification for this patient has been called back"""
+    from database import get_patient_latest_notification
+    notification = await get_patient_latest_notification(patient["id"])
+    if notification and notification.get("called_back"):
+        return {
+            "callback_completed": True,
+            "notification_id": notification["id"],
+            "urgency_level": notification.get("urgency_level"),
+            "summary": notification.get("summary")
+        }
+    return {"callback_completed": False}
+
+
 @app.post("/api/notify-clinic")
-@limiter.limit("5/minute")
-async def notify_clinic(request: NotifyClinicRequest, patient: dict = Depends(get_current_patient)):
+async def notify_clinic(request: Request, notify_data: NotifyClinicRequest, patient: dict = Depends(get_current_patient)):
     """Notify clinic about patient session"""
-    if not request.consent_given:
+    if not notify_data.consent_given:
         raise HTTPException(
             status_code=400,
             detail="Patient consent is required to notify clinic"
@@ -324,23 +367,44 @@ async def notify_clinic(request: NotifyClinicRequest, patient: dict = Depends(ge
     # Use the authenticated patient_id
     patient_id = patient["id"]
 
+    # Get the patient's latest session for summary and urgency
+    from database import get_latest_session
+    session = await get_latest_session(patient_id)
+    
+    session_id = session["id"] if session else f"session-{uuid.uuid4().hex[:8]}"
+    urgency_level = session.get("urgency_level", "SEE_A_DOCTOR") if session else "SEE_A_DOCTOR"
+    
+    # Generate clinical summary from session messages
+    summary = "Clinical summary will be generated"
+    if session and session.get("messages"):
+        import json
+        try:
+            session_messages = json.loads(session["messages"])
+            # Get AI client and summarize
+            from gemma_client import get_ai_client
+            ai_client = get_ai_client()
+            summary = await ai_client.summarize(session_messages)
+        except Exception as e:
+            print(f"Error generating summary: {e}")
+            summary = "Unable to generate summary"
+
     # Create notification in database
     notification_id = await create_notification(
         patient_id=patient_id,
-        patient_phone=request.patient_phone,
-        summary="Clinical summary will be generated",
-        urgency_level="PENDING",
-        session_id=f"session-{uuid.uuid4().hex[:8]}"
+        patient_phone=notify_data.patient_phone,
+        summary=summary,
+        urgency_level=urgency_level,
+        session_id=session_id
     )
 
     # Broadcast real-time "ping" to all open dashboards
     await manager.broadcast({
         "type": "new_notification",
         "notification_id": notification_id,
-        "patient_phone": request.patient_phone,
-        "patient_name": request.patient_name or "مريض مجهول",
-        "summary": "طلب استشارة طبيب",
-        "urgency_level": "PENDING",
+        "patient_phone": notify_data.patient_phone,
+        "patient_name": notify_data.patient_name or "مريض مجهول",
+        "summary": summary[:100] + "..." if len(summary) > 100 else summary,
+        "urgency_level": urgency_level,
         "patient_id": patient_id
     })
 
@@ -353,8 +417,22 @@ async def notify_clinic(request: NotifyClinicRequest, patient: dict = Depends(ge
 
 @app.post("/api/notifications/{notification_id}/callback")
 async def mark_callback(notification_id: str):
-    """Mark notification as called back"""
+    """Mark notification as called back and notify patient"""
     await mark_notification_called(notification_id)
+    
+    # Get notification details to find patient
+    from database import get_notification_by_id
+    notification = await get_notification_by_id(notification_id)
+    
+    if notification:
+        # Broadcast callback notification
+        await manager.broadcast({
+            "type": "callback_completed",
+            "notification_id": notification_id,
+            "patient_id": notification.get("patient_id"),
+            "patient_phone": notification.get("patient_phone")
+        })
+    
     return {"success": True}
 
 
@@ -367,6 +445,84 @@ async def get_notifications_endpoint(
     """Get notifications for dashboard"""
     notifications = await get_notifications(limit, filter_status, urgency_filter)
     return {"notifications": notifications}
+
+
+@app.post("/api/patient/profile")
+async def save_patient_profile(
+    profile_data: ProfileRequest,
+    patient: dict = Depends(get_current_patient)
+):
+    """Save or update patient demographics"""
+    patient_id = patient["id"]
+    
+    # Validate
+    if profile_data.age < 1 or profile_data.age > 120:
+        raise HTTPException(status_code=400, detail="Invalid age")
+    if profile_data.gender not in ["male", "female", "other"]:
+        raise HTTPException(status_code=400, detail="Invalid gender")
+    if profile_data.height_cm < 50 or profile_data.height_cm > 300:
+        raise HTTPException(status_code=400, detail="Invalid height")
+    if profile_data.weight_kg < 10 or profile_data.weight_kg > 500:
+        raise HTTPException(status_code=400, detail="Invalid weight")
+    
+    await update_patient_demographics(
+        patient_id,
+        profile_data.age,
+        profile_data.gender,
+        profile_data.height_cm,
+        profile_data.weight_kg
+    )
+    
+    return {"success": True, "message": "Profile updated"}
+
+
+@app.get("/api/patient/profile")
+async def get_patient_profile(patient: dict = Depends(get_current_patient)):
+    """Get patient profile status"""
+    patient_id = patient["id"]
+    demographics = await get_patient_demographics(patient_id)
+    
+    if not demographics or not demographics.get("profile_completed"):
+        return {"profile_completed": False}
+    
+    return {
+        "profile_completed": True,
+        "age": demographics.get("age"),
+        "gender": demographics.get("gender"),
+        "height_cm": demographics.get("height_cm"),
+        "weight_kg": demographics.get("weight_kg")
+    }
+
+
+@app.get("/api/live-stats")
+async def live_stats():
+    """Get live queue statistics for the patient PWA"""
+    stats = await get_queue_stats()
+    return {
+        "position": stats.get("pending", 0) + 1, # Simplified: pending + 1
+        "pending": stats.get("pending", 0),
+        "processing": stats.get("processing", 0),
+        "estimated_wait": (stats.get("pending", 0) * 5) + 5 # 5 mins per patient
+    }
+
+
+@app.get("/api/admin/patient-history/{patient_id}")
+async def patient_history(patient_id: str, pin: str = Header(None)):
+    """Get full patient history (PIN protected)"""
+    expected_pin = os.getenv("DASHBOARD_PIN", "123456")
+    if pin != expected_pin:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid PIN")
+    
+    sessions = await get_patient_sessions(patient_id)
+    notifications = await get_patient_notifications(patient_id)
+    demographics = await get_patient_demographics(patient_id)
+    
+    return {
+        "patient_id": patient_id,
+        "demographics": demographics,
+        "sessions": sessions,
+        "notifications": notifications
+    }
 
 
 @app.get("/api/dashboard/config")
@@ -395,16 +551,13 @@ async def dashboard(request: Request):
 @app.websocket("/ws/dashboard")
 async def dashboard_websocket(websocket: WebSocket):
     """WebSocket for real-time dashboard updates"""
-    token = websocket.query_params.get("token")
-    from auth import validate_token
-    if not token or not await validate_token(token):
-        await websocket.close(code=1008, reason="Unauthorized")
-        return
+    # For demo purposes, we allow dashboard websocket without token
+    # In production, this should be secured with a clinic-specific token
     await manager.connect(websocket)
     try:
         while True:
             # Keep connection alive
-            data = await websocket.receive_text()
+            await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 

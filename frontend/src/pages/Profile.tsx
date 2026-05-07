@@ -1,19 +1,50 @@
 import { useLocation } from "wouter";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { User, LogOut, Phone, ShieldCheck } from "lucide-react";
+import { apiRequest } from "@/lib/api";
+import { User, LogOut, Phone, ShieldCheck, Hospital, Edit2, Ruler, Scale } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
+
+interface ProfileData {
+  profile_completed: boolean;
+  age?: number;
+  gender?: string;
+  height_cm?: number;
+  weight_kg?: number;
+}
 
 export default function Profile() {
   const [_, setLocation] = useLocation();
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   
   const phone = localStorage.getItem("tabib_phone") || "+971 50 000 0000";
   const patientId = localStorage.getItem("tabib_patient_id") || "PAT-12345";
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const data = await apiRequest<ProfileData>("/api/patient/profile");
+        setProfile(data);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const handleLogout = () => {
     if (navigator.vibrate) navigator.vibrate(10);
     localStorage.removeItem("tabib_token");
     localStorage.removeItem("tabib_patient_id");
-    setLocation("/app/phone");
+    localStorage.removeItem("tabib_profile_completed");
+    setLocation("/phone");
+  };
+
+  const genderLabel = (g?: string) => {
+    if (g === "male") return "ذكر";
+    if (g === "female") return "أنثى";
+    if (g === "other") return "آخر";
+    return "-";
   };
 
   return (
@@ -45,6 +76,68 @@ export default function Profile() {
                 <span className="font-bold text-foreground font-mono text-sm">{patientId}</span>
               </div>
             </div>
+
+            {/* Demographics - only show if profile is completed */}
+            {profile?.profile_completed && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-lg">
+                    <User className="w-4 h-4 text-gray-500" />
+                    <div className="flex flex-col items-start">
+                      <span className="text-[10px] text-gray-500 font-bold">العمر</span>
+                      <span className="font-bold text-foreground">{profile.age} سنة</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-lg">
+                    <User className="w-4 h-4 text-gray-500" />
+                    <div className="flex flex-col items-start">
+                      <span className="text-[10px] text-gray-500 font-bold">الجنس</span>
+                      <span className="font-bold text-foreground">{genderLabel(profile.gender)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-lg">
+                    <Ruler className="w-4 h-4 text-gray-500" />
+                    <div className="flex flex-col items-start">
+                      <span className="text-[10px] text-gray-500 font-bold">الطول</span>
+                      <span className="font-bold text-foreground">{profile.height_cm} سم</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-lg">
+                    <Scale className="w-4 h-4 text-gray-500" />
+                    <div className="flex flex-col items-start">
+                      <span className="text-[10px] text-gray-500 font-bold">الوزن</span>
+                      <span className="font-bold text-foreground">{profile.weight_kg} كجم</span>
+                    </div>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLocation("/profile-setup")}
+                  className="w-full mt-3 text-primary font-bold flex items-center justify-center gap-2"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  تعديل البيانات الصحية
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          <div className="w-full mt-6 pt-6 border-t border-gray-100">
+            <Button 
+              variant="outline"
+              className="w-full border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 font-bold h-12 rounded-xl flex items-center justify-center gap-2"
+              onClick={() => {
+                const url = localStorage.getItem("selectedClinicUrl") || "http://localhost:8000";
+                window.open(`${url}/dashboard`, "_blank");
+              }}
+            >
+              <Hospital className="w-5 h-5" />
+              <span>فتح لوحة تحكم العيادة</span>
+            </Button>
+            <p className="text-[10px] text-gray-400 mt-2 font-medium">
+              (For Clinic Staff Only / لموظفي العيادة فقط)
+            </p>
           </div>
         </div>
 

@@ -23,6 +23,11 @@ async def init_db():
                 phone_hash TEXT UNIQUE,
                 token TEXT,
                 expires_at TIMESTAMP,
+                age INTEGER,
+                gender TEXT,
+                height_cm INTEGER,
+                weight_kg INTEGER,
+                profile_completed BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -67,6 +72,29 @@ async def init_db():
             CREATE INDEX IF NOT EXISTS idx_queue_created ON queue(created_at);
         """)
         await db.commit()
+        
+        # Migration: Add new columns to existing patients table
+        try:
+            await db.execute("ALTER TABLE patients ADD COLUMN age INTEGER")
+        except:
+            pass
+        try:
+            await db.execute("ALTER TABLE patients ADD COLUMN gender TEXT")
+        except:
+            pass
+        try:
+            await db.execute("ALTER TABLE patients ADD COLUMN height_cm INTEGER")
+        except:
+            pass
+        try:
+            await db.execute("ALTER TABLE patients ADD COLUMN weight_kg INTEGER")
+        except:
+            pass
+        try:
+            await db.execute("ALTER TABLE patients ADD COLUMN profile_completed BOOLEAN DEFAULT FALSE")
+        except:
+            pass
+        await db.commit()
 
 
 async def create_patient(phone_hash: str) -> str:
@@ -79,6 +107,40 @@ async def create_patient(phone_hash: str) -> str:
         )
         await db.commit()
     return patient_id
+
+
+async def update_patient_demographics(
+    patient_id: str,
+    age: int,
+    gender: str,
+    height_cm: int,
+    weight_kg: int
+) -> bool:
+    """Update patient demographics and mark profile as completed"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """UPDATE patients SET 
+               age = ?, gender = ?, height_cm = ?, weight_kg = ?, 
+               profile_completed = TRUE, last_seen = CURRENT_TIMESTAMP
+               WHERE id = ?""",
+            (age, gender, height_cm, weight_kg, patient_id)
+        )
+        await db.commit()
+    return True
+
+
+async def get_patient_demographics(patient_id: str) -> Optional[Dict[str, Any]]:
+    """Get patient demographics"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT age, gender, height_cm, weight_kg, profile_completed FROM patients WHERE id = ?",
+            (patient_id,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
 
 
 async def get_patient_by_phone_hash(phone_hash: str) -> Optional[Dict[str, Any]]:
@@ -147,6 +209,30 @@ async def create_session(patient_id: str, messages: List[Dict]) -> str:
     return session_id
 
 
+async def get_latest_session(patient_id: str) -> Optional[Dict[str, Any]]:
+    """Get the most recent session for a patient"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM sessions WHERE patient_id = ? ORDER BY created_at DESC LIMIT 1",
+            (patient_id,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+
+
+async def update_session_messages(session_id: str, messages: List[Dict]):
+    """Update session messages (append new message)"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE sessions SET messages = ? WHERE id = ?",
+            (json.dumps(messages), session_id)
+        )
+        await db.commit()
+
+
 async def update_session_urgency(session_id: str, urgency_level: str):
     """Update session urgency level"""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -194,6 +280,34 @@ async def create_notification(
         )
         await db.commit()
     return notification_id
+
+
+async def get_notification_by_id(notification_id: str) -> Optional[Dict[str, Any]]:
+    """Get a single notification by ID"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM notifications WHERE id = ?",
+            (notification_id,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+
+
+async def get_patient_latest_notification(patient_id: str) -> Optional[Dict[str, Any]]:
+    """Get the latest notification for a patient (to check callback status)"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM notifications WHERE patient_id = ? ORDER BY created_at DESC LIMIT 1",
+            (patient_id,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
 
 
 async def get_notifications(
@@ -338,6 +452,30 @@ async def reset_pending_queue():
                WHERE status = 'pending'"""
         )
         await db.commit()
+
+
+async def get_patient_sessions(patient_id: str) -> List[Dict[str, Any]]:
+    """Get all sessions for a patient (History)"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM sessions WHERE patient_id = ? ORDER BY created_at DESC",
+            (patient_id,)
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+async def get_patient_notifications(patient_id: str) -> List[Dict[str, Any]]:
+    """Get all notifications for a patient (History)"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM notifications WHERE patient_id = ? ORDER BY created_at DESC",
+            (patient_id,)
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
 
 
 async def get_queue_stats() -> Dict[str, int]:

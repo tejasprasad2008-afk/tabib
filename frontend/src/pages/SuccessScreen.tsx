@@ -9,7 +9,7 @@ export default function SuccessScreen() {
 
   const handleReturn = () => {
     if (navigator.vibrate) navigator.vibrate(10);
-    setLocation("/app/chat");
+    setLocation("/chat");
   };
 
   return (

@@ -125,19 +125,12 @@ def get_auth_error_message() -> Dict[str, Any]:
     }
 
 
-async def get_current_patient(authorization: str = None) -> Dict[str, Any]:
+from fastapi import HTTPException, Header
+
+async def get_current_patient(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
     """
     Dependency to get current authenticated patient from Authorization header.
-    Use with FastAPI Depends().
-    
-    Usage:
-        @app.get("/api/protected")
-        async def protected_endpoint(patient: dict = Depends(get_current_patient)):
-            patient_id = patient["id"]
-            ...
     """
-    from fastapi import HTTPException, Header
-    
     # Validate token
     if not authorization:
         raise HTTPException(
@@ -150,9 +143,10 @@ async def get_current_patient(authorization: str = None) -> Dict[str, Any]:
         )
     
     # Extract token from "Bearer <token>" format
-    token = authorization
     if authorization.startswith("Bearer "):
         token = authorization[7:]
+    else:
+        token = authorization
     
     patient = await validate_token(token)
     if not patient:

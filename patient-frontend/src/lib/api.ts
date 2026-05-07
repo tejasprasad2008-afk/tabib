@@ -1,7 +1,18 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const getBaseUrl = () => {
+  const selected = localStorage.getItem('selectedClinicUrl');
+  if (selected) {
+    if (window.location.hostname === 'localhost' && (selected.includes('localhost') || selected.includes('127.0.0.1'))) {
+      return '';
+    }
+    return selected;
+  }
+  return import.meta.env.VITE_API_URL || '';
+};
 
 export async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem('tabib_token');
+  const BASE = getBaseUrl();
+  
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {

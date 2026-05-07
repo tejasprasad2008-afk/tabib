@@ -4,46 +4,46 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Stethoscope, MessageSquare, Hospital } from "lucide-react";
 
-const slides = [
-  {
-    id: 1,
-    icon: <Stethoscope className="h-24 w-24 text-white" />,
-    title: "مرحباً في طبيب",
-    subtitle: "مساعدك الطبي الشخصي للفرز السريع والتوجيه في أي وقت.",
-    bg: "bg-primary"
-  },
-  {
-    id: 2,
-    icon: <MessageSquare className="h-24 w-24 text-white" />,
-    title: "صف أعراضك",
-    subtitle: "تحدث مع المساعد الذكي عن الأعراض التي تشعر بها بسهولة وأمان.",
-    bg: "bg-[#10B981]"
-  },
-  {
-    id: 3,
-    icon: <Hospital className="h-24 w-24 text-white" />,
-    title: "إعلام العيادة",
-    subtitle: "نقوم بإرسال تقرير حالتك للعيادة لتجهيز الرعاية المناسبة لك.",
-    bg: "bg-[#F59E0B]"
-  },
-];
-
 export default function Onboarding() {
   const [_, setLocation] = useLocation();
   const [currentSlide, setCurrentSlide] = useState(0);
+
+  const slides = [
+    {
+      id: 1,
+      icon: <Stethoscope className="h-24 w-24 text-white" />,
+      title: "مرحباً في طبيب",
+      subtitle: "مساعدك الطبي الشخصي للفرز السريع والتوجيه في أي وقت.",
+      bg: "bg-primary"
+    },
+    {
+      id: 2,
+      icon: <MessageSquare className="h-24 w-24 text-white" />,
+      title: "صف أعراضك",
+      subtitle: "تحدث مع المساعد الذكي عن الأعراض التي تشعر بها بسهولة وأمان.",
+      bg: "bg-[#10B981]"
+    },
+    {
+      id: 3,
+      icon: <Hospital className="h-24 w-24 text-white" />,
+      title: "إعلام العيادة",
+      subtitle: "نقوم بإرسال تقرير حالتك للعيادة لتجهيز الرعاية المناسبة لك.",
+      bg: "bg-[#F59E0B]"
+    },
+  ];
 
   const nextSlide = () => {
     if (navigator.vibrate) navigator.vibrate(10);
     if (currentSlide < slides.length - 1) {
       setCurrentSlide(currentSlide + 1);
     } else {
-      setLocation("/app/discovery");
+      setLocation("/registry");
     }
   };
 
   const skip = () => {
     if (navigator.vibrate) navigator.vibrate(10);
-    setLocation("/app/discovery");
+    setLocation("/registry");
   };
 
   return (

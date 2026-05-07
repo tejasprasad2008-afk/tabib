@@ -21,7 +21,7 @@ export default function OTPVerify() {
 
   useEffect(() => {
     if (!phone) {
-      setLocation("/app/phone");
+      setLocation("/phone");
     }
   }, [phone, setLocation]);
 
@@ -40,19 +40,18 @@ export default function OTPVerify() {
     setError(null);
 
     try {
-      const response = await apiRequest<{ token: string, patient_id: string }>("/api/auth/verify-otp", {
+      const res = await apiRequest<{ token: string, patient_id: string }>("/api/auth/verify-otp", {
         method: "POST",
         body: JSON.stringify({ phone, code: otpValue }),
       });
       
-      // Store auth token and patient info
-      localStorage.setItem("tabib_token", response.token);
-      localStorage.setItem("tabib_patient_id", response.patient_id);
+      localStorage.setItem("tabib_token", res.token);
+      localStorage.setItem("tabib_patient_id", res.patient_id);
       localStorage.setItem("tabib_patient_phone", phone);
       
-      setLocation("/app/chat");
+      // Skip profile check for now - go directly to chat
+      setLocation("/chat");
     } catch (err: any) {
-      console.error("OTP verification failed:", err);
       setError("الرمز غير صحيح. يرجى المحاولة مرة أخرى.\nInvalid code. Please try again.");
     } finally {
       setIsLoading(false);
@@ -62,12 +61,13 @@ export default function OTPVerify() {
   const handleResend = () => {
     if (countdown > 0) return;
     setCountdown(60);
+    // Mock resend logic
   };
 
   return (
     <div className="flex h-screen-safe w-full flex-col bg-background p-6">
       <div className="absolute top-0 right-0 p-4 z-10 w-full flex justify-start">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/app/phone")} className="min-h-[44px] min-w-[44px] rounded-lg">
+        <Button variant="ghost" size="icon" onClick={() => setLocation("/phone")} className="min-h-[44px] min-w-[44px] rounded-lg">
           <ArrowRight className="h-6 w-6" />
         </Button>
       </div>
