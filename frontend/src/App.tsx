@@ -47,53 +47,44 @@ function LandingPage() {
   );
 }
 
-function PatientApp() {
-  return (
-    <WouterRouter base="/app">
-      <Switch>
-        <Route path="/" component={SplashScreen} />
-        <Route path="/onboarding" component={Onboarding} />
-        <Route path="/registry" component={ClinicRegistry} />
-        <Route path="/phone" component={PhoneInput} />
-        <Route path="/otp" component={OTPVerify} />
-        <Route path="/profile-setup">
-          <ProtectedRoute>
-            <ProfileSetup />
-          </ProtectedRoute>
-        </Route>
-        <Route path="/chat">
-          <ProtectedRoute>
-            <ChatScreen />
-          </ProtectedRoute>
-        </Route>
-        <Route path="/queue">
-          <ProtectedRoute>
-            <QueueStatus />
-          </ProtectedRoute>
-        </Route>
-        <Route path="/profile">
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        </Route>
-        <Route path="/success">
-          <ProtectedRoute>
-            <SuccessScreen />
-          </ProtectedRoute>
-        </Route>
-        <Route component={NotFound} />
-      </Switch>
-    </WouterRouter>
-  );
-}
-
-function MainRouter() {
+function Router() {
   return (
     <Switch>
-      <Route path="/" component={LandingPage} />
+      {/* Marketing & Setup Routes */}
+      <Route path="/about" component={LandingPage} />
       <Route path="/for-clinics" component={ClinicSetup} />
-      <Route path="/app/*" component={PatientApp} />
-      <Route path="/app" component={PatientApp} />
+
+      {/* Patient App Routes (Root) */}
+      <Route path="/" component={SplashScreen} />
+      <Route path="/onboarding" component={Onboarding} />
+      <Route path="/registry" component={ClinicRegistry} />
+      <Route path="/phone" component={PhoneInput} />
+      <Route path="/otp" component={OTPVerify} />
+      <Route path="/profile-setup">
+        <ProtectedRoute>
+          <ProfileSetup />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/chat">
+        <ProtectedRoute>
+          <ChatScreen />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/queue">
+        <ProtectedRoute>
+          <QueueStatus />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/profile">
+        <ProtectedRoute>
+          <Profile />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/success">
+        <ProtectedRoute>
+          <SuccessScreen />
+        </ProtectedRoute>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -105,7 +96,7 @@ function App() {
       <TooltipProvider>
         <LanguageProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <MainRouter />
+            <Router />
           </WouterRouter>
           <Toaster />
         </LanguageProvider>

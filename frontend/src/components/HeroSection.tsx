@@ -174,7 +174,7 @@ export default function HeroSection() {
           </button>
           
           <button
-            onClick={() => setLocation('/app')}
+            onClick={() => setLocation('/')}
             className="liquid-glass-strong"
             style={{
               display: 'flex',
