@@ -42,7 +42,7 @@ from registry import register_clinic, get_nearby_clinics, get_local_clinic
 
 
 # Force HTTPS by default in production
-FORCE_HTTPS_DEFAULT = "false"
+FORCE_HTTPS_DEFAULT = "true"
 
 
 class OTPRequest(BaseModel):
