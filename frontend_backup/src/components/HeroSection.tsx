@@ -4,10 +4,14 @@ import SwayCanvas from './SwayCanvas';
 import AtmosphereCanvas from './AtmosphereCanvas';
 import ParticleCanvas from './ParticleCanvas';
 import ParticleTitle from './ParticleTitle';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, Smartphone } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useLocation } from 'wouter';
 
 export default function HeroSection() {
   const sectionRef = useRef<HTMLElement>(null);
+  const [, setLocation] = useLocation();
+  const { language } = useLanguage();
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ['start start', 'end start'],
@@ -24,6 +28,7 @@ export default function HeroSection() {
         background: '#000',
         overflow: 'hidden',
         position: 'relative',
+        direction: language === 'ar' ? 'rtl' : 'ltr',
       }}
     >
       {/* Background layer */}
@@ -118,7 +123,7 @@ export default function HeroSection() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 1.5, ease: [0.16, 1, 0.3, 1] }}
           style={{
-            fontFamily: "'Barlow', sans-serif",
+            fontFamily: language === 'ar' ? "'Noto Sans Arabic', sans-serif" : "'Barlow', sans-serif",
             fontWeight: 300,
             fontSize: 'clamp(1rem, 2vw, 1.2rem)',
             color: 'rgba(255,255,255,0.6)',
@@ -127,8 +132,9 @@ export default function HeroSection() {
             marginBottom: '2.5rem',
           }}
         >
-          Offline-first Arabic medical triage for underserved MENA communities.
-          Private, local, and in your language.
+          {language === 'en'
+            ? "Offline-first Arabic medical triage for underserved MENA communities. Private, local, and in your language."
+            : "فرز طبي أولي باللغة العربية يعمل بدون إنترنت للمجتمعات المحرومة في الشرق الأوسط وشمال أفريقيا. خاص، محلي، وبلغتك."}
         </motion.p>
 
         {/* CTA buttons */}
@@ -139,6 +145,7 @@ export default function HeroSection() {
           style={{ display: 'flex', gap: '0.875rem', flexWrap: 'wrap' }}
         >
           <button
+            onClick={() => setLocation('/for-clinics')}
             className="liquid-glass-strong"
             style={{
               display: 'flex',
@@ -147,7 +154,7 @@ export default function HeroSection() {
               padding: '0.75rem 1.75rem',
               borderRadius: '9999px',
               color: '#fff',
-              fontFamily: "'Barlow', sans-serif",
+              fontFamily: language === 'ar' ? "'Noto Sans Arabic', sans-serif" : "'Barlow', sans-serif",
               fontSize: '0.9rem',
               fontWeight: 500,
               cursor: 'pointer',
@@ -162,10 +169,42 @@ export default function HeroSection() {
               (e.currentTarget as HTMLElement).style.boxShadow = '';
             }}
           >
-            Install for Your Clinic
+            {language === 'en' ? "Install for Your Clinic" : "تثبيت لعيادتك"}
             <ArrowUpRight size={16} strokeWidth={1.8} />
           </button>
+          
           <button
+            onClick={() => window.open('https://tabib-xi.vercel.app', '_blank')}
+            className="liquid-glass-strong"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.75rem 1.75rem',
+              borderRadius: '9999px',
+              color: '#1a1a1a',
+              background: '#FFD764',
+              fontFamily: language === 'ar' ? "'Noto Sans Arabic', sans-serif" : "'Barlow', sans-serif",
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 24px rgba(255,215,100,0.4)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.transform = '';
+              (e.currentTarget as HTMLElement).style.boxShadow = '';
+            }}
+          >
+            {language === 'en' ? "Use as Patient" : "استخدم كمريض"}
+            <Smartphone size={16} strokeWidth={1.8} />
+          </button>
+
+          <button
+            onClick={() => window.open('https://github.com/tejasprasad2008-afk/Tabib.git', '_blank')}
             className="liquid-glass"
             style={{
               display: 'flex',
@@ -174,7 +213,7 @@ export default function HeroSection() {
               padding: '0.75rem 1.5rem',
               borderRadius: '9999px',
               color: 'rgba(255,255,255,0.8)',
-              fontFamily: "'Barlow', sans-serif",
+              fontFamily: language === 'ar' ? "'Noto Sans Arabic', sans-serif" : "'Barlow', sans-serif",
               fontSize: '0.9rem',
               fontWeight: 400,
               cursor: 'pointer',
@@ -189,7 +228,7 @@ export default function HeroSection() {
               (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
             }}
           >
-            View on GitHub
+            {language === 'en' ? "View on GitHub" : "عرض على GitHub"}
           </button>
         </motion.div>
       </motion.div>
@@ -211,8 +250,8 @@ export default function HeroSection() {
           gap: '0.5rem',
         }}
       >
-        <span style={{ fontFamily: "'Barlow', sans-serif", fontSize: '0.7rem', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>
-          Scroll
+        <span style={{ fontFamily: language === 'ar' ? "'Noto Sans Arabic', sans-serif" : "'Barlow', sans-serif", fontSize: '0.7rem', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>
+          {language === 'en' ? "Scroll" : "التمرير"}
         </span>
         <motion.div
           animate={{ y: [0, 6, 0] }}

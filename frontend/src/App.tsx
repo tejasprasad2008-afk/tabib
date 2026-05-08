@@ -16,41 +16,84 @@ import Profile from "@/pages/Profile";
 import SuccessScreen from "@/pages/SuccessScreen";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
+import ClinicSetup from "@/pages/ClinicSetup";
+import Navbar from "@/components/Navbar";
+import PageLoader from "@/components/PageLoader";
+import HeroSection from "@/components/HeroSection";
+import IntroSection from "@/components/IntroSection";
+import HowItWorksSection from "@/components/HowItWorksSection";
+import FeaturesSection from "@/components/FeaturesSection";
+import CTASection from "@/components/CTASection";
+import Footer from "@/components/Footer";
+import { LanguageProvider } from "@/contexts/LanguageContext";
+
 const queryClient = new QueryClient();
 
-function Router() {
+function LandingPage() {
+  return (
+    <>
+      <div className="grain-overlay" />
+      <PageLoader />
+      <Navbar />
+      <main>
+        <HeroSection />
+        <IntroSection />
+        <HowItWorksSection />
+        <FeaturesSection />
+        <CTASection />
+      </main>
+      <Footer />
+    </>
+  );
+}
+
+function PatientApp() {
+  return (
+    <WouterRouter base="/app">
+      <Switch>
+        <Route path="/" component={SplashScreen} />
+        <Route path="/onboarding" component={Onboarding} />
+        <Route path="/registry" component={ClinicRegistry} />
+        <Route path="/phone" component={PhoneInput} />
+        <Route path="/otp" component={OTPVerify} />
+        <Route path="/profile-setup">
+          <ProtectedRoute>
+            <ProfileSetup />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/chat">
+          <ProtectedRoute>
+            <ChatScreen />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/queue">
+          <ProtectedRoute>
+            <QueueStatus />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/profile">
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/success">
+          <ProtectedRoute>
+            <SuccessScreen />
+          </ProtectedRoute>
+        </Route>
+        <Route component={NotFound} />
+      </Switch>
+    </WouterRouter>
+  );
+}
+
+function MainRouter() {
   return (
     <Switch>
-      <Route path="/" component={SplashScreen} />
-      <Route path="/onboarding" component={Onboarding} />
-      <Route path="/registry" component={ClinicRegistry} />
-      <Route path="/phone" component={PhoneInput} />
-      <Route path="/otp" component={OTPVerify} />
-      <Route path="/profile-setup">
-        <ProtectedRoute>
-          <ProfileSetup />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/chat">
-        <ProtectedRoute>
-          <ChatScreen />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/queue">
-        <ProtectedRoute>
-          <QueueStatus />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/profile">
-        <ProtectedRoute>
-          <Profile />
-        </ProtectedRoute>
-      </Route>
-      <Route path="/success">
-        <ProtectedRoute>
-          <SuccessScreen />
-        </ProtectedRoute>
-      </Route>
+      <Route path="/" component={LandingPage} />
+      <Route path="/for-clinics" component={ClinicSetup} />
+      <Route path="/app/*" component={PatientApp} />
+      <Route path="/app" component={PatientApp} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -60,10 +103,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
-        <Toaster />
+        <LanguageProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <MainRouter />
+          </WouterRouter>
+          <Toaster />
+        </LanguageProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
