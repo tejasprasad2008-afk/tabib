@@ -153,6 +153,14 @@ async def update_patient_phone_hash(patient_id: str, new_phone_hash: str):
         await db.commit()
 
 
+async def has_legacy_users() -> bool:
+    """Check if there are any legacy bcrypt hashed users left in the database"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT 1 FROM patients WHERE phone_hash LIKE '$2b$%' LIMIT 1")
+        row = await cursor.fetchone()
+        return row is not None
+
+
 async def get_patient_by_phone_hash(phone_hash: str) -> Optional[Dict[str, Any]]:
     """Get patient by phone hash"""
     async with aiosqlite.connect(DB_PATH) as db:

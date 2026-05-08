@@ -15,7 +15,8 @@ from database import (
     get_all_patients,
     update_patient_last_seen,
     get_patient_by_phone_hash,
-    update_patient_phone_hash
+    update_patient_phone_hash,
+    has_legacy_users
 )
 
 
@@ -81,8 +82,8 @@ async def verify_otp(phone: str, code: str) -> Dict[str, Any]:
     fast_hash = hash_phone(phone)
     patient = await get_patient_by_phone_hash(fast_hash)
 
-    # If not found, try O(N) bcrypt loop for legacy users
-    if not patient:
+    # If not found, try O(N) bcrypt loop ONLY if legacy users still exist
+    if not patient and await has_legacy_users():
         patients = await get_all_patients()
         for p in patients:
             if p.get("phone_hash") and p["phone_hash"].startswith("$2b$") and bcrypt.checkpw(phone.encode(), p["phone_hash"].encode()):
