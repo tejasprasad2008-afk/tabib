@@ -22,8 +22,11 @@ from database import (
 
 import bcrypt
 
-# Get pepper from environment, default to empty string for backwards compatibility if not set
-PHONE_PEPPER = os.getenv("PHONE_PEPPER", "default_secret_pepper").encode()
+# Get pepper from environment. Fail fast if missing or empty to ensure security.
+phone_pepper_env = os.getenv("PHONE_PEPPER")
+if not phone_pepper_env:
+    raise RuntimeError("PHONE_PEPPER environment variable is missing or empty. It must be set for secure phone hashing.")
+PHONE_PEPPER = phone_pepper_env.encode()
 
 def hash_phone(phone: str) -> str:
     """Hash phone number for storage using HMAC-SHA256 with a pepper (O(1) lookup)"""
