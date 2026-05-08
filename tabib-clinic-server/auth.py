@@ -4,6 +4,7 @@ Simple token-based auth with OTP simulation
 """
 
 import hashlib
+import hmac
 import secrets
 import os
 from typing import Optional, Dict, Any
@@ -12,15 +13,20 @@ from datetime import datetime, timedelta
 from database import (
     create_patient,
     get_all_patients,
-    update_patient_last_seen
+    update_patient_last_seen,
+    get_patient_by_phone_hash,
+    update_patient_phone_hash
 )
 
 
 import bcrypt
 
+# Get pepper from environment, default to empty string for backwards compatibility if not set
+PHONE_PEPPER = os.getenv("PHONE_PEPPER", "default_secret_pepper").encode()
+
 def hash_phone(phone: str) -> str:
-    """Hash phone number for storage (never store plain phone)"""
-    return bcrypt.hashpw(phone.encode(), bcrypt.gensalt()).decode()
+    """Hash phone number for storage using HMAC-SHA256 with a pepper (O(1) lookup)"""
+    return hmac.new(PHONE_PEPPER, phone.encode(), hashlib.sha256).hexdigest()
 
 
 # Feature flag for demo mode
@@ -71,15 +77,22 @@ async def verify_otp(phone: str, code: str) -> Dict[str, Any]:
         # This is a placeholder for production implementation
         pass
 
-    patients = await get_all_patients()
-    patient = None
-    for p in patients:
-        if p.get("phone_hash") and bcrypt.checkpw(phone.encode(), p["phone_hash"].encode()):
-            patient = p
-            break
+    # Try O(1) lookup first using the fast hash
+    fast_hash = hash_phone(phone)
+    patient = await get_patient_by_phone_hash(fast_hash)
+
+    # If not found, try O(N) bcrypt loop for legacy users
+    if not patient:
+        patients = await get_all_patients()
+        for p in patients:
+            if p.get("phone_hash") and p["phone_hash"].startswith("$2b$") and bcrypt.checkpw(phone.encode(), p["phone_hash"].encode()):
+                patient = p
+                # Migrate legacy user to fast hash
+                await update_patient_phone_hash(patient["id"], fast_hash)
+                break
 
     if not patient:
-        phone_hash = hash_phone(phone)
+        phone_hash = fast_hash
         patient_id = await create_patient(phone_hash)
     else:
         patient_id = patient["id"]

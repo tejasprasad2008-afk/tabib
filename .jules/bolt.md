@@ -1,0 +1,3 @@
+## 2024-05-08 - O(N) Password Hashing Bottleneck
+**Learning:** Found a critical backend anti-pattern: `verify_otp` was iterating over ALL users in the database and checking their phone numbers using `bcrypt.checkpw()`. Since bcrypt is intentionally slow (~100ms per check), login time grew linearly at O(N) with the number of registered users, creating a massive CPU bottleneck.
+**Action:** Use a deterministic hashing algorithm (like SHA-256 with a salt) for lookups so we can query the database directly in O(1) time (`SELECT * WHERE phone_hash = ?`), falling back to O(N) bcrypt validation ONLY for legacy users during migration.

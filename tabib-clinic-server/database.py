@@ -143,6 +143,16 @@ async def get_patient_demographics(patient_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+async def update_patient_phone_hash(patient_id: str, new_phone_hash: str):
+    """Update patient's phone hash (for migration to faster hashing)"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE patients SET phone_hash = ? WHERE id = ?",
+            (new_phone_hash, patient_id)
+        )
+        await db.commit()
+
+
 async def get_patient_by_phone_hash(phone_hash: str) -> Optional[Dict[str, Any]]:
     """Get patient by phone hash"""
     async with aiosqlite.connect(DB_PATH) as db:
