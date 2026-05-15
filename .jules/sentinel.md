@@ -2,3 +2,6 @@
 **Vulnerability:** Missing TLS Enforcement (Plaintext Health Data Transmission)
 **Learning:** The FastAPI server had a middleware that optionally enforced HTTPS only if a specific environment variable (`FORCE_HTTPS=true`) was provided. The default behavior was to allow plaintext HTTP, leaving patient health data and authentication tokens exposed to interception.
 **Prevention:** Always default to "secure by default" configurations for any service handling PII or sensitive health data. `FORCE_HTTPS` should default to `true`, and require an explicit opt-out rather than an explicit opt-in for unencrypted development connections.
+## 2024-05-24 - CORS Misconfiguration
+**Vulnerability:** Combining `allow_origin_regex=".*"` with `allow_credentials=True` in FastAPI CORS Middleware allows cross-origin requests to read authenticated responses, posing CSRF and data leakage risks.
+**Fix:** Disable `allow_credentials=False` and set `allow_origins=["*"]` when token-based authentication (e.g., Bearer tokens) is used, and remove redundant manual `Access-Control-Allow-Origin: *` headers.
