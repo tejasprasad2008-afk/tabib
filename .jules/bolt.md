@@ -1,3 +1,3 @@
-## 2026-05-08 - O(N) Password Hashing Bottleneck
-**Learning:** Found a critical backend anti-pattern: `verify_otp` was iterating over ALL users in the database and checking their phone numbers using `bcrypt.checkpw()`. Since bcrypt is intentionally slow (~100ms per check), login time grew linearly at O(N) with the number of registered users, creating a massive CPU bottleneck.
-**Action:** Use a deterministic hashing algorithm (like SHA-256 with a salt) for lookups so we can query the database directly in O(1) time (`SELECT * WHERE phone_hash = ?`), falling back to O(N) bcrypt validation ONLY for legacy users during migration.
+## 2024-05-18 - Avoid committing local DB files after benchmarking
+**Learning:** Running local performance benchmarks or tests that mutate data can inadvertently modify tracked SQLite database files.
+**Action:** When creating a test or benchmark script, use a separate temporary database file to avoid dirtying the project's repository. Do not blindly `git commit -a`, review `git status` to ensure binary artifacts like `.db` files are not accidentally staged.

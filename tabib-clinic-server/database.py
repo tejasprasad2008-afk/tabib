@@ -497,14 +497,15 @@ async def get_patient_notifications(patient_id: str) -> List[Dict[str, Any]]:
 
 
 async def get_queue_stats() -> Dict[str, int]:
-    """Get queue statistics"""
+    """Get queue statistics
+    ⚡ Bolt Optimization: Replaced N+1 query loop with a single GROUP BY query.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
-        stats = {}
-        for status in ["pending", "processing", "done", "error"]:
-            cursor = await db.execute(
-                "SELECT COUNT(*) FROM queue WHERE status = ?",
-                (status,)
-            )
-            row = await cursor.fetchone()
-            stats[status] = row[0] if row else 0
+        stats = {"pending": 0, "processing": 0, "done": 0, "error": 0}
+        cursor = await db.execute(
+            "SELECT status, COUNT(*) FROM queue WHERE status IN ('pending', 'processing', 'done', 'error') GROUP BY status"
+        )
+        rows = await cursor.fetchall()
+        for row in rows:
+            stats[row[0]] = row[1]
         return stats
