@@ -7,7 +7,6 @@ import asyncio
 import os
 from typing import Dict, Any, Optional
 from datetime import datetime
-import uuid
 
 from database import (
     create_queue_item,

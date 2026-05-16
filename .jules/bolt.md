@@ -5,7 +5,3 @@
 ## 2026-05-15 - Non-blocking File I/O for JSON Registries
 **Learning:** Synchronous file reading (`open().read()`) combined with `json.load()` inside `async def` methods heavily blocks the event loop, causing severe latency spikes (e.g., ~10s event loop latency on ~50k records).
 **Action:** Use `asyncio.to_thread` to offload both file reading and JSON parsing to a separate thread, reducing event loop blocking while keeping the interface unchanged.
-
-## 2025-03-01 - Asynchronous File Responses in FastAPI
-**Learning:** Using synchronous `open(..., "r").read()` inside an `async def` endpoint in FastAPI blocks the asynchronous event loop, significantly degrading concurrent performance. FastAPI's `FileResponse` serves files efficiently using `anyio` in the background and sets correct content-type headers implicitly.
-**Action:** Always prefer `FileResponse` for serving static files asynchronously in FastAPI instead of manually reading files. Ensure benchmark scripts simulate concurrent connections (e.g., using `httpx.AsyncClient`) to reveal event loop blocking behaviors.
