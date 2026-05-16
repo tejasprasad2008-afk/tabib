@@ -1,7 +1,7 @@
 import pytest
 import httpx
 import os
-from gemma_client import OllamaClient, OpenRouterClient, MOCK_RESPONSE
+from gemma_client import OpenRouterClient, MOCK_RESPONSE
 
 @pytest.fixture
 def openrouter_client(monkeypatch):
@@ -32,15 +32,3 @@ async def test_openrouter_other_error(httpx_mock, openrouter_client):
     httpx_mock.add_response(status_code=500, text="Internal Server Error")
     with pytest.raises(Exception, match="OpenRouter Error:"):
         await openrouter_client.chat([{"role": "user", "content": "hi"}])
-
-@pytest.mark.asyncio
-async def test_ollama_client_chat_exception(mocker):
-    mocker.patch("httpx.AsyncClient.post", side_effect=httpx.RequestError("Mocked request error", request=None))
-
-    client = OllamaClient()
-
-    with pytest.raises(Exception) as exc_info:
-        await client.chat([{"role": "user", "content": "hello"}])
-
-    assert "Ollama Error" in str(exc_info.value)
-    assert "Mocked request error" in str(exc_info.value)

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Hospital, MapPin, Search, Loader2, ChevronLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { apiRequest } from "@/lib/api";
 
 interface Clinic {
   id: string;
@@ -22,10 +23,7 @@ export default function ClinicRegistry() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    // In a real scenario, this URL would be the GitHub Raw URL or a Registry API
-    // For now, we fetch from our own public folder as a fallback
-    fetch("/clinics.json")
-      .then((res) => res.json())
+    apiRequest<{ clinics: Clinic[] }>("/api/clinics?lat=24.2075&lon=55.7447")
       .then((data) => {
         setClinics(data.clinics);
         setLoading(false);

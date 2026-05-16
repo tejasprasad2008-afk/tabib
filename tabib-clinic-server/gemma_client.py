@@ -5,7 +5,6 @@ Handles communication with Ollama, OpenRouter, or Mock responses
 
 import httpx
 import os
-import json
 from typing import List, Dict, Any, Optional
 from prompts import TRIAGE_SYSTEM_PROMPT, SUMMARIZATION_SYSTEM_PROMPT
 

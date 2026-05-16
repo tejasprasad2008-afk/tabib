@@ -5,6 +5,7 @@ Uses aiosqlite for async database operations
 
 import aiosqlite
 import os
+import sqlite3
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -76,23 +77,23 @@ async def init_db():
         # Migration: Add new columns to existing patients table
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN age INTEGER")
-        except:
+        except sqlite3.OperationalError:
             pass
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN gender TEXT")
-        except:
+        except sqlite3.OperationalError:
             pass
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN height_cm INTEGER")
-        except:
+        except sqlite3.OperationalError:
             pass
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN weight_kg INTEGER")
-        except:
+        except sqlite3.OperationalError:
             pass
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN profile_completed BOOLEAN DEFAULT FALSE")
-        except:
+        except sqlite3.OperationalError:
             pass
         await db.commit()
 
@@ -344,7 +345,8 @@ async def get_notifications(
         conditions.append("called_back = TRUE")
 
     if urgency_filter == "emergency":
-        conditions.append("urgency_level = 'EMERGENCY'")
+        conditions.append("urgency_level = ?")
+        params.append("EMERGENCY")
 
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
@@ -497,14 +499,15 @@ async def get_patient_notifications(patient_id: str) -> List[Dict[str, Any]]:
 
 
 async def get_queue_stats() -> Dict[str, int]:
-    """Get queue statistics"""
+    """Get queue statistics
+    ⚡ Bolt Optimization: Replaced N+1 query loop with a single GROUP BY query.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
-        stats = {}
-        for status in ["pending", "processing", "done", "error"]:
-            cursor = await db.execute(
-                "SELECT COUNT(*) FROM queue WHERE status = ?",
-                (status,)
-            )
-            row = await cursor.fetchone()
-            stats[status] = row[0] if row else 0
+        stats = {"pending": 0, "processing": 0, "done": 0, "error": 0}
+        cursor = await db.execute(
+            "SELECT status, COUNT(*) FROM queue WHERE status IN ('pending', 'processing', 'done', 'error') GROUP BY status"
+        )
+        rows = await cursor.fetchall()
+        for row in rows:
+            stats[row[0]] = row[1]
         return stats
