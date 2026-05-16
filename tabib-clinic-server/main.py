@@ -6,7 +6,7 @@ Standalone clinic server for Gemma 4-powered medical triage
 import os
 import sys
 from contextlib import asynccontextmanager
-from typing import Optional, Dict, Any
+from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, Form, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
