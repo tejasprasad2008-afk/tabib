@@ -40,9 +40,8 @@ export default function PhoneInput() {
       localStorage.setItem("tabib_phone", formattedPhone);
       setLocation("/otp");
     } catch (err: any) {
-      console.warn("API Error, continuing for demo purposes:", err);
-      localStorage.setItem("tabib_phone", formattedPhone);
-      setLocation("/otp");
+      console.error("API Error during OTP request:", err);
+      setError(err.message || "حدث خطأ أثناء إرسال رمز التحقق. يرجى المحاولة مرة أخرى.");
     } finally {
       setIsLoading(false);
     }

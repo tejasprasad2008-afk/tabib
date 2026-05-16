@@ -5,7 +5,3 @@
 ## 2026-05-15 - Non-blocking File I/O for JSON Registries
 **Learning:** Synchronous file reading (`open().read()`) combined with `json.load()` inside `async def` methods heavily blocks the event loop, causing severe latency spikes (e.g., ~10s event loop latency on ~50k records).
 **Action:** Use `asyncio.to_thread` to offload both file reading and JSON parsing to a separate thread, reducing event loop blocking while keeping the interface unchanged.
-
-## 2024-05-18 - Avoid committing local DB files after benchmarking
-**Learning:** Running local performance benchmarks or tests that mutate data can inadvertently modify tracked SQLite database files.
-**Action:** When creating a test or benchmark script, use a separate temporary database file to avoid dirtying the project's repository. Do not blindly `git commit -a`, review `git status` to ensure binary artifacts like `.db` files are not accidentally staged.
