@@ -246,49 +246,36 @@ async def verify_otp_endpoint(request: Request, data: OTPVerifyRequest):
     return result
 
 
-@app.post("/api/chat")
-async def chat_endpoint(request: Request, chat_data: ChatRequest, patient: dict = Depends(get_current_patient)):
-    """Submit chat request to queue - validates ownership"""
-    # Use the authenticated patient_id from token
-    patient_id = patient["id"]
-    
-    if not chat_data.message and not chat_data.image_base64:
-        raise HTTPException(status_code=400, detail="Message or image required")
+def process_chat_image(image_base64: str) -> str:
+    """Process and validate base64 image data."""
+    import base64
+    import io
+    from PIL import Image
+    try:
+        image_bytes = base64.b64decode(image_base64)
+        if len(image_bytes) > 5 * 1024 * 1024:
+            raise HTTPException(400, "File too large")
 
-    if chat_data.image_base64:
-        import base64
-        import io
-        from PIL import Image
-        try:
-            image_bytes = base64.b64decode(chat_data.image_base64)
-            if len(image_bytes) > 5 * 1024 * 1024:
-                raise HTTPException(400, "File too large")
+        if not (image_bytes.startswith(b'\xff\xd8') or image_bytes.startswith(b'\x89PNG')):
+            raise HTTPException(400, "Invalid file type")
             
-            if not (image_bytes.startswith(b'\xff\xd8') or image_bytes.startswith(b'\x89PNG')):
-                raise HTTPException(400, "Invalid file type")
-                
-            img = Image.open(io.BytesIO(image_bytes))
-            data = list(img.getdata())
-            image_without_exif = Image.new(img.mode, img.size)
-            image_without_exif.putdata(data)
-            
-            buffered = io.BytesIO()
-            image_without_exif.save(buffered, format="JPEG")
-            chat_data.image_base64 = base64.b64encode(buffered.getvalue()).decode()
-            
-        except Exception as e:
-            if isinstance(e, HTTPException):
-                raise e
-            raise HTTPException(400, "Invalid image data")
+        img = Image.open(io.BytesIO(image_bytes))
+        data = list(img.getdata())
+        image_without_exif = Image.new(img.mode, img.size)
+        image_without_exif.putdata(data)
 
-    # Submit to queue
-    queue_id = await queue_manager.submit(patient_id, {
-        "message": chat_data.message,
-        "image_base64": chat_data.image_base64
-    })
+        buffered = io.BytesIO()
+        image_without_exif.save(buffered, format="JPEG")
+        return base64.b64encode(buffered.getvalue()).decode()
 
-    # Wait for result (simple sync wrapper for demo)
-    max_wait = 60 # seconds
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(400, "Invalid image data")
+
+
+async def wait_for_queue_result(queue_id: str, max_wait: int = 60) -> dict:
+    """Wait for queue processing to complete and return status."""
     start_time = time.time()
     
     while time.time() - start_time < max_wait:
@@ -311,6 +298,28 @@ async def chat_endpoint(request: Request, chat_data: ChatRequest, patient: dict 
         "queue_position": (await queue_manager.get_status(queue_id))["queue_position"],
         "status": "pending"
     }
+
+
+@app.post("/api/chat")
+async def chat_endpoint(request: Request, chat_data: ChatRequest, patient: dict = Depends(get_current_patient)):
+    """Submit chat request to queue - validates ownership"""
+    # Use the authenticated patient_id from token
+    patient_id = patient["id"]
+
+    if not chat_data.message and not chat_data.image_base64:
+        raise HTTPException(status_code=400, detail="Message or image required")
+
+    if chat_data.image_base64:
+        chat_data.image_base64 = process_chat_image(chat_data.image_base64)
+
+    # Submit to queue
+    queue_id = await queue_manager.submit(patient_id, {
+        "message": chat_data.message,
+        "image_base64": chat_data.image_base64
+    })
+
+    # Wait for result (simple sync wrapper for demo)
+    return await wait_for_queue_result(queue_id)
 
 
 @app.get("/api/queue-status")
