@@ -9,6 +9,7 @@ import math
 import httpx
 from typing import List, Dict, Any, Optional
 import uuid
+import asyncio
 
 
 REGISTRY_URL = os.getenv("REGISTRY_URL", "")
@@ -128,8 +129,8 @@ async def get_nearby_clinics(
     return clinics
 
 
-async def _load_local_registry() -> Dict[str, Any]:
-    """Load local registry from JSON file"""
+def _read_registry_sync() -> Dict[str, Any]:
+    """Synchronously read and parse the registry file"""
     try:
         with open(LOCAL_REGISTRY_FILE, "r") as f:
             return json.load(f)
@@ -137,6 +138,10 @@ async def _load_local_registry() -> Dict[str, Any]:
         return {}
     except json.JSONDecodeError:
         return {}
+
+async def _load_local_registry() -> Dict[str, Any]:
+    """Load local registry from JSON file without blocking the event loop"""
+    return await asyncio.to_thread(_read_registry_sync)
 
 
 async def _save_local_registry(clinics: Dict[str, Any]):

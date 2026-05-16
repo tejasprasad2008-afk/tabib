@@ -5,6 +5,7 @@ Uses aiosqlite for async database operations
 
 import aiosqlite
 import os
+import sqlite3
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -76,23 +77,23 @@ async def init_db():
         # Migration: Add new columns to existing patients table
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN age INTEGER")
-        except:
+        except sqlite3.OperationalError:
             pass
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN gender TEXT")
-        except:
+        except sqlite3.OperationalError:
             pass
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN height_cm INTEGER")
-        except:
+        except sqlite3.OperationalError:
             pass
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN weight_kg INTEGER")
-        except:
+        except sqlite3.OperationalError:
             pass
         try:
             await db.execute("ALTER TABLE patients ADD COLUMN profile_completed BOOLEAN DEFAULT FALSE")
-        except:
+        except sqlite3.OperationalError:
             pass
         await db.commit()
 
@@ -344,7 +345,8 @@ async def get_notifications(
         conditions.append("called_back = TRUE")
 
     if urgency_filter == "emergency":
-        conditions.append("urgency_level = 'EMERGENCY'")
+        conditions.append("urgency_level = ?")
+        params.append("EMERGENCY")
 
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
