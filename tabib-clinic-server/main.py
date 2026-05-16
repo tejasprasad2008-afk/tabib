@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, Form, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 import json
 import uuid
@@ -553,8 +553,7 @@ async def dashboard(request: Request):
         "dashboard",
         "index.html"
     )
-    with open(dashboard_path, "r") as f:
-        return f.read()
+    return FileResponse(dashboard_path)
 
 
 @app.websocket("/ws/dashboard")
