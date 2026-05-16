@@ -344,7 +344,8 @@ async def get_notifications(
         conditions.append("called_back = TRUE")
 
     if urgency_filter == "emergency":
-        conditions.append("urgency_level = 'EMERGENCY'")
+        conditions.append("urgency_level = ?")
+        params.append("EMERGENCY")
 
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
